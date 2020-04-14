@@ -1,0 +1,116 @@
+*,
+*:before,
+*:after {
+  box-sizing: border-box;
+}
+
+.js-plotly-plot .plotly .modebar {
+  padding-top: 5%;
+  margin-right: 3.5%;
+}
+
+body {
+  background-color: #f2f2f2;
+  margin: 5%;
+  font-family:"Open Sans", "HelveticaNeue", "Helvetica Neue", Helvetica, Arial,
+    sans-serif;
+}
+
+.item {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.panel_no_color{
+  display: grid;
+  justify-content: center;
+  align-content: center;
+  border-radius: 5px;
+  position: relative;
+}
+
+.panel_no_color_scroll{
+  display: grid;
+  justify-content: center;
+  align-content: center;
+  border-radius: 5px;
+  position: relative;
+  overflow:scroll;
+}
+
+.panel{
+  display: grid;
+  justify-content: center;
+  align-content: center;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+  margin: 10px;
+  position: relative;
+  box-shadow: 1px 1px 1px lightgrey;  
+}
+
+.rpanelnc{
+    display: grid;
+    justify-content: center;
+    align-content: center;
+    border-radius: 5px;
+    position: relative;
+    margin-left:10px;
+    margin-right:10px;
+}
+.rpanel{
+  display: grid;
+  justify-content: center;
+  align-content: center;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+  margin: 10px;
+  position: relative;
+  box-shadow: 1px 1px 1px lightgrey;  
+}
+
+
+.all_rows{
+    display:grid;
+    justify-content: center;
+    align-content: center;
+    position: relative;
+    max-width:80vmax;
+}
+
+
+
+.text_centered{
+  display:grid;
+  grid-template-columns: 100%;
+  grid-gap: 1px;
+  justify-content: center;
+  align-content: center;
+  text-align: center;
+}
+
+.cell_centered{
+  display: grid;
+  grid-template-columns: 100%;
+  justify-content: center;
+  align-content: center;
+  text-align: center;
+  border-style:var(--bordline);
+  border-color:var(--bordcolor);
+  min-height:50px;
+  min-width:50px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin-top: 0;
+  margin-bottom: 0;
+  font-weight: 300;
+}
+p {
+  margin-top: 0;
+  }

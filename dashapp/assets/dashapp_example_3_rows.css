@@ -1,0 +1,63 @@
+
+.plogo{
+    height: 50px;
+    width:150px;
+    justify-content: center;
+    align-content: center;
+    margin-left:40px;
+}
+
+.ogtitle1{
+    margin-bottom: 0px;
+    text-align:center;
+    font-weight:200;
+}
+
+.ogtitle2{
+    margin-top:0px;
+    text-align:center;    
+}
+
+.ogabutton{
+    height:98%;
+    width:98%;
+    padding:0 20px;
+    font-size:15px;
+    border-radius:7%;
+    background-color:transparent;
+}
+
+.adiv{
+    margin-right:40px;
+}
+
+
+.oil_gas_r2_margin{
+    margin-left:20px;
+    margin-right:20px;
+}
+
+.oil_gas_d1_margin{
+    margin-left:20px;
+    margin-right:20px;
+    margin-bottom:5px;
+    overflow:scroll;
+    /* height:150px;
+    min-width:120px; */
+    min-height:10vmax;
+    max-height:15vmax;
+    min-width:13vmax;
+}
+
+.oil_gas_r2c1{
+    display:grid;
+    justify-content: center;
+    align-content: center;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+    margin: 10px;
+    position: relative;
+    box-shadow: 1px 1px 1px lightgrey;  
+    max-height:600px;
+}
+
