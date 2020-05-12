@@ -1,0 +1,23 @@
+Metadata-Version: 2.1
+Name: dashapp
+Version: 0.0.1
+Summary: Python wrapper for building Dash Web Apps
+Home-page: https://github.com/bgithub1/dashapp.git
+Author: Bill Perlman
+Author-email: bperlman@liverisk.com
+License: UNKNOWN
+Description: # dashapp: turn your pandas dataframes into websites
+        
+        dashapp is a python library that allows you to assemble Plotly Dash widgets, whose source data comes from Pandas DataFrames.  
+        
+        Each component that you create takes a DataFrame (or slice of a DataFrame) as an input argument, and returns a Dash Component.  These components can be assembled into panels.  The panels can be assembled into columns, rows or rows of columns.
+        
+        Additionally, component can be linked together so that state changes in one component can generate reactions and state changes in linked components.
+Keywords: sample setuptools development
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: License :: OSI Approved :: MIT License
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown

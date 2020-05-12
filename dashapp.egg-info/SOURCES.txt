@@ -1,0 +1,8 @@
+README.md
+setup.py
+dashapp/__init__.py
+dashapp/dashapp.py
+dashapp.egg-info/PKG-INFO
+dashapp.egg-info/SOURCES.txt
+dashapp.egg-info/dependency_links.txt
+dashapp.egg-info/top_level.txt

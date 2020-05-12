@@ -366,6 +366,7 @@ class_converters = {
     dcc.Store:lambda v:v,
     dcc.Textarea:lambda v:v,
     dcc.Upload:lambda v:v,
+    dash_table.DataTable:lambda v:v,
 }
 
 html_members = [t[1] for t in inspect.getmembers(html)]
@@ -419,17 +420,23 @@ class DashLink():
 
 pn = 'rpanel' # see the oil_gas.css file for how this css class is defined
 pnnc = 'rpanelnc'
+pnnm = 'rpanelnm'
+pnncnm = 'rpanelncnm'
 
 # def panel_cell(child,div_id=None):
-def panel_cell(child,div_id=None):
-    return html.Div(child,className=pn,id=_new_uuid() if div_id is None else div_id)
+def panel_cell(child,div_id=None,panel_background_color=None):
+    s = {} if panel_background_color is None else {'background-color':panel_background_color}
+    return html.Div(child,className=pn,style=s,
+                    id=_new_uuid() if div_id is None else div_id)
 
 # def nopanel_cell(child,div_id=None):
-def nopanel_cell(child,div_id=None):
-    return html.Div(child,className=pnnc,id=_new_uuid() if div_id is None else div_id)
+def nopanel_cell(child,div_id=None,panel_background_color=None):
+    s = {} if panel_background_color is None else {'background-color':panel_background_color}
+    return html.Div(child,className=pnnc,style=s,
+                    id=_new_uuid() if div_id is None else div_id)
 
 def multi_cell_panel(children,grid_template=None,
-                    parent_class=pn,child_class=pnnc,
+                    parent_class=None,
                     orientation_is_rows=True,
                     panel_background_color=None,
 #                     div_id=None):
@@ -440,32 +447,30 @@ def multi_cell_panel(children,grid_template=None,
     style = {'display':'grid',orientation:gtr,opposite_orientation:'1fr'}
     if panel_background_color is not None:
         style['background-color'] = panel_background_color
-    panel_html = html.Div([html.Div(c,className=child_class) for c in children],
+#     panel_html = html.Div([html.Div(c,className=child_class) for c in children],
+#                           id=_new_uuid() if div_id is None else div_id,
+#                           className=parent_class,style=style)
+    panel_html = html.Div([c for c in children],
                           id=_new_uuid() if div_id is None else div_id,
                           className=parent_class,style=style)
     return panel_html
 
 
-def multi_row_panel(children,grid_template=None,parent_class=pn,
-                    child_class=pnnc,
+def multi_row_panel(children,grid_template=None,parent_class=None,
                     panel_background_color=None,
-#                     div_id=None):
                     div_id=None):
     return multi_cell_panel(children,
                             grid_template=grid_template,
                             parent_class=parent_class,
-                            child_class=child_class,
                             orientation_is_rows=True,
                             panel_background_color=panel_background_color,
                             div_id=_new_uuid() if div_id is None else div_id)
 
-def multi_column_panel(children,grid_template=None,parent_class=pn,
-                    child_class=pnnc,
+def multi_column_panel(children,grid_template=None,parent_class=None,
                     panel_background_color=None,
-#                     div_id=None):
                     div_id=None):
     return multi_cell_panel(children,grid_template=grid_template,
-                            parent_class=parent_class,child_class=child_class,
+                            parent_class=parent_class,
                             orientation_is_rows=False,
                             panel_background_color=panel_background_color,
                             div_id=_new_uuid() if div_id is None else div_id)
@@ -517,7 +522,7 @@ def make_slider(df,comp_id,value_column,className=None):
     return slider
 
 def make_datepicker(df,comp_id,timestamp_column,
-                    init_date=0,className=None):
+                    init_date=0,className=None,style=None):
     min_date = df[timestamp_column].min()
     min_date - pd.to_datetime(min_date)
     max_date = df[timestamp_column].max()
@@ -527,7 +532,9 @@ def make_datepicker(df,comp_id,timestamp_column,
         id=comp_id,
         min_date_allowed=min_date,
         max_date_allowed=max_date,
-        date=idate
+        date=idate,
+        className=className,
+        style=style
     )
     return dp
 

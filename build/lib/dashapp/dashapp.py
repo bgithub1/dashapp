@@ -247,8 +247,7 @@ def _dash_table_update_paging_closure(df):
                 df_new = _get_filter_expression(df_new,f)
         beg_row = page_current*page_size
         if page_current*page_size > len(df_new):
-            beg_row = len(df_new) - page_size
-        print(f"_dash_table_update_paging_closure: page_current:{page_current} page_size: {page_size}")
+            beg_row = 0
         df_new =  df_new.iloc[
             beg_row:beg_row + page_size
         ]
@@ -263,8 +262,7 @@ def make_dashtable(dtable_id,df_in,
                   title_style=None,
                   filtering=False,
                   max_width='120vh',
-                  displayed_rows=20,
-                  editable=True):
+                  displayed_rows=20):
     '''
     Create an instance of dash_table.DataTable
     
@@ -327,10 +325,11 @@ def make_dashtable(dtable_id,df_in,
         style_data={
             'whiteSpace': 'normal',
             'height': 'auto'
-        },        
-        editable=editable,
+        },
+        
+        editable=True,
 #         css=[{"selector": "table", "rule": "width: 100%;"}],
-        css=[{"selector": "table"}],   
+        css=[{"selector": "table"}],
         id=datatable_id
     )
     if columns_to_display is not None:
@@ -515,22 +514,6 @@ def make_slider(df,comp_id,value_column,className=None):
         value=[min_val,max_val]
     )
     return slider
-
-def make_datepicker(df,comp_id,timestamp_column,
-                    init_date=0,className=None):
-    min_date = df[timestamp_column].min()
-    min_date - pd.to_datetime(min_date)
-    max_date = df[timestamp_column].max()
-    max_date - pd.to_datetime(max_date)
-    idate = min_date if init_date == 0 else (max_date if init_date==1 else init_date)
-    dp = dcc.DatePickerSingle(
-        id=comp_id,
-        min_date_allowed=min_date,
-        max_date_allowed=max_date,
-        date=idate
-    )
-    return dp
-
 
 
 # ### Define DashLink generators for common sets of components

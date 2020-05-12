@@ -21,6 +21,7 @@ body {
     justify-content: center;
     align-items: center;
 }
+
 .panel_no_color{
   display: grid;
   justify-content: center;
@@ -58,6 +59,31 @@ body {
     margin-left:10px;
     margin-right:10px;
 }
+
+.wrapword{
+  word-wrap: break-word;
+  word-break: break-all;
+}
+
+.aligncenter{
+    justify-items:center;
+    align-items:center;
+}
+
+.basepanel{
+  display: grid;
+  justify-content: center;
+  align-content: center;
+}
+
+.baseview{
+  border-radius: 5px;
+  background-color: #f9f9f9;
+  margin: 10px;
+  position: relative;
+  box-shadow: 1px 1px 1px lightgrey;  
+}
+
 .rpanel{
   display: grid;
   justify-content: center;
@@ -69,6 +95,22 @@ body {
   box-shadow: 1px 1px 1px lightgrey;  
 }
 
+.rpanelncnm{
+    display: grid;
+    justify-content: center;
+    align-content: center;
+    border-radius: 5px;
+    position: relative;
+}
+.rpanelnm{
+  display: grid;
+  justify-content: center;
+  align-content: center;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+  position: relative;
+  box-shadow: 1px 1px 1px lightgrey;  
+}
 
 .all_rows{
     display:grid;
