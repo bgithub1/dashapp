@@ -62,6 +62,14 @@ def init_root_logger(logfile=DEFAULT_LOG_PATH,logging_level=DEFAULT_LOG_LEVEL):
     logger.addHandler(ch)   
     return logger
 
+def str_to_date(d,sep='-'):
+    try:
+        dt = datetime.datetime.strptime(str(d)[:10],f'%Y{sep}%m{sep}%d')
+    except:
+        return None
+    return dt
+
+
 
 # In[3]:
 
@@ -75,62 +83,7 @@ def stop_callback(errmess,logger=None):
     raise PreventUpdate()
 
 
-# def plotly_plot(df_in,x_column,plot_title=None,
-#                 y_left_label=None,y_right_label=None,
-#                 bar_plot=False,figsize=(16,10),
-#                 number_of_ticks_display=20,
-#                 yaxis2_cols=None,
-#                 x_value_labels=None):
-#     ya2c = [] if yaxis2_cols is None else yaxis2_cols
-#     ycols = [c for c in df_in.columns.values if c != x_column]
-#     # create tdvals, which will have x axis labels
-#     td = list(df_in[x_column]) 
-#     nt = len(df_in)-1 if number_of_ticks_display > len(df_in) else number_of_ticks_display
-#     spacing = len(td)//nt
-#     tdvals = td[::spacing]
-#     tdtext = tdvals
-#     if x_value_labels is not None:
-#         tdtext = [x_value_labels[i] for i in tdvals]
-#     
-#     # create data for graph
-#     data = []
-#     # iterate through all ycols to append to data that gets passed to go.Figure
-#     for ycol in ycols:
-#         if bar_plot:
-#             b = go.Bar(x=td,y=df_in[ycol],name=ycol,yaxis='y' if ycol not in ya2c else 'y2')
-#         else:
-#             b = go.Scatter(x=td,y=df_in[ycol],name=ycol,yaxis='y' if ycol not in ya2c else 'y2')
-#         data.append(b)
-# 
-#     # create a layout
-#     layout = go.Layout(
-#         title=plot_title,
-#         xaxis=dict(
-#             ticktext=tdtext,
-#             tickvals=tdvals,
-#             tickangle=45,
-#             type='category'),
-#         yaxis=dict(
-#             title='y main' if y_left_label is None else y_left_label
-#         ),
-#         yaxis2=dict(
-#             title='y alt' if y_right_label is None else y_right_label,
-#             overlaying='y',
-#             side='right'),
-#         margin=Margin(
-#             b=100
-#         )        
-#     )
-# 
-#     fig = go.Figure(data=data,layout=layout)
-#     fig.update_layout(
-#         title={
-#             'text': plot_title,
-#             'y':0.9,
-#             'x':0.5,
-#             'xanchor': 'center',
-#             'yanchor': 'top'})
-#     return fig
+
 
 def plotly_plot(df_in,x_column,plot_title=None,
                 y_left_label=None,y_right_label=None,

@@ -2,6 +2,7 @@ README.md
 setup.py
 dashapp/__init__.py
 dashapp/dashapp.py
+dashapp/dashapp2.py
 dashapp.egg-info/PKG-INFO
 dashapp.egg-info/SOURCES.txt
 dashapp.egg-info/dependency_links.txt
