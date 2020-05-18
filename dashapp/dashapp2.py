@@ -75,26 +75,81 @@ def stop_callback(errmess,logger=None):
     raise PreventUpdate()
 
 
-# In[4]:
-
+# def plotly_plot(df_in,x_column,plot_title=None,
+#                 y_left_label=None,y_right_label=None,
+#                 bar_plot=False,figsize=(16,10),
+#                 number_of_ticks_display=20,
+#                 yaxis2_cols=None,
+#                 x_value_labels=None):
+#     ya2c = [] if yaxis2_cols is None else yaxis2_cols
+#     ycols = [c for c in df_in.columns.values if c != x_column]
+#     # create tdvals, which will have x axis labels
+#     td = list(df_in[x_column]) 
+#     nt = len(df_in)-1 if number_of_ticks_display > len(df_in) else number_of_ticks_display
+#     spacing = len(td)//nt
+#     tdvals = td[::spacing]
+#     tdtext = tdvals
+#     if x_value_labels is not None:
+#         tdtext = [x_value_labels[i] for i in tdvals]
+#     
+#     # create data for graph
+#     data = []
+#     # iterate through all ycols to append to data that gets passed to go.Figure
+#     for ycol in ycols:
+#         if bar_plot:
+#             b = go.Bar(x=td,y=df_in[ycol],name=ycol,yaxis='y' if ycol not in ya2c else 'y2')
+#         else:
+#             b = go.Scatter(x=td,y=df_in[ycol],name=ycol,yaxis='y' if ycol not in ya2c else 'y2')
+#         data.append(b)
+# 
+#     # create a layout
+#     layout = go.Layout(
+#         title=plot_title,
+#         xaxis=dict(
+#             ticktext=tdtext,
+#             tickvals=tdvals,
+#             tickangle=45,
+#             type='category'),
+#         yaxis=dict(
+#             title='y main' if y_left_label is None else y_left_label
+#         ),
+#         yaxis2=dict(
+#             title='y alt' if y_right_label is None else y_right_label,
+#             overlaying='y',
+#             side='right'),
+#         margin=Margin(
+#             b=100
+#         )        
+#     )
+# 
+#     fig = go.Figure(data=data,layout=layout)
+#     fig.update_layout(
+#         title={
+#             'text': plot_title,
+#             'y':0.9,
+#             'x':0.5,
+#             'xanchor': 'center',
+#             'yanchor': 'top'})
+#     return fig
 
 def plotly_plot(df_in,x_column,plot_title=None,
                 y_left_label=None,y_right_label=None,
-                bar_plot=False,figsize=(16,10),
+                bar_plot=False,width=800,height=400,
                 number_of_ticks_display=20,
                 yaxis2_cols=None,
-                x_value_labels=None):
+                x_value_labels=None,
+               modebar_orientation='v',modebar_color='grey'):
     ya2c = [] if yaxis2_cols is None else yaxis2_cols
     ycols = [c for c in df_in.columns.values if c != x_column]
     # create tdvals, which will have x axis labels
-    td = list(df_in[x_column]) 
+#     td = list(df_in[x_column]) 
+    td = df_in[x_column].values
     nt = len(df_in)-1 if number_of_ticks_display > len(df_in) else number_of_ticks_display
     spacing = len(td)//nt
     tdvals = td[::spacing]
     tdtext = tdvals
     if x_value_labels is not None:
         tdtext = [x_value_labels[i] for i in tdvals]
-    
     # create data for graph
     data = []
     # iterate through all ycols to append to data that gets passed to go.Figure
@@ -106,6 +161,7 @@ def plotly_plot(df_in,x_column,plot_title=None,
         data.append(b)
 
     # create a layout
+    
     layout = go.Layout(
         title=plot_title,
         xaxis=dict(
@@ -120,9 +176,14 @@ def plotly_plot(df_in,x_column,plot_title=None,
             title='y alt' if y_right_label is None else y_right_label,
             overlaying='y',
             side='right'),
+        autosize=True,
+#         autosize=False,
+#         width=width,
+#         height=height,
         margin=Margin(
             b=100
-        )        
+        ),
+        modebar={'orientation': modebar_orientation,'bgcolor':modebar_color}
     )
 
     fig = go.Figure(data=data,layout=layout)
@@ -135,14 +196,32 @@ def plotly_plot(df_in,x_column,plot_title=None,
             'yanchor': 'top'})
     return fig
 
+def plotly_shaded_rectangles(beg_end_date_tuple_list,fig):
+    ld_shapes = []
+    for beg_end_date_tuple in beg_end_date_tuple_list:
+        ld_beg = beg_end_date_tuple[0]
+        ld_end = beg_end_date_tuple[1]
+        ld_shape = dict(
+            type="rect",
+            # x-reference is assigned to the x-values
+            xref="x",
+            # y-reference is assigned to the plot paper [0,1]
+            yref="paper",
+            x0=ld_beg,
+            y0=0,
+            x1=ld_end,
+            y1=1,
+            fillcolor="LightSalmon",
+            opacity=0.5,
+            layer="below",
+            line_width=0,
+        )
+        ld_shapes.append(ld_shape)
 
-# In[5]:
-
+    fig.update_layout(shapes=ld_shapes)
+    return fig
 
 DEFAULT_TIMEZONE = 'US/Eastern'
-
-
-# In[6]:
 
 
 # ************************* define useful factory methods *****************
@@ -497,7 +576,11 @@ def make_radio(df,comp_id,value_column,label_column=None,current_value=None,clas
 
 def make_dropdown(df,comp_id,value_column,label_column=None,current_value=None,multi=False,className=None):
     lc = value_column if label_column is None else label_column
-    df_temp = df[[lc,value_column]].drop_duplicates().sort_values(label_column)
+    if lc == value_column:
+        df_temp = df[[lc]].drop_duplicates().sort_values(lc)
+        df_temp[f"{lc}_"] = df_temp[lc]
+    else:
+        df_temp = df[[lc,value_column]].drop_duplicates().sort_values(lc)
     df_temp.index = list(range(len(df_temp)))
     options = [{"label": wt[0], "value": wt[1]} for wt in df_temp.values]
     comp = dcc.Dropdown(
@@ -538,13 +621,26 @@ def make_datepicker(df,comp_id,timestamp_column,
     )
     return dp
 
+def make_page_title(title_text,div_id=None,html_container=None,parent_class=None,
+                   panel_background_color='#CAE2EB'):
+    par_class = parent_class
+    if par_class is None:
+        par_class = pnnm
+    htmc = html_container
+    if htmc is None:
+        htmc = html.H2
+        
+    title_parts = title_text.split('\n')
+    
 
+    title_list = [htmc(tp,className=pnncnm) for tp in title_parts]
+    r = multi_row_panel(title_list,
+                 parent_class=par_class,
+                 div_id=div_id,
+                 panel_background_color=panel_background_color) 
+    return r   
 
 # ### Define DashLink generators for common sets of components
-
-# In[10]:
-
-
 def radio_to_dropdown_options_link(radio_comp,dropdown_comp,build_dropdown_options_callback):
     def _build_link_radio_dropdown(input_list):
         radio_value =  input_list[0]
