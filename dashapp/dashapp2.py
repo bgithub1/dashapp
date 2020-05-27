@@ -13,6 +13,8 @@ import plotly.graph_objs as go
 from plotly.graph_objs.layout import Margin#,Font
 from dash.dependencies import Input, Output,State
 from dash.exceptions import PreventUpdate
+from plotly.subplots import make_subplots
+
 import dash_table
 import pandas as pd
 import numpy as np
@@ -38,10 +40,11 @@ DEFAULT_LOG_LEVEL = 'INFO'
 def _new_uuid():
     return str(uuid.uuid1())
 
-def init_root_logger(logfile=DEFAULT_LOG_PATH,logging_level=DEFAULT_LOG_LEVEL):
+# def init_root_logger(logfile=DEFAULT_LOG_PATH,logging_level=DEFAULT_LOG_LEVEL):
+def init_root_logger(logfile=DEFAULT_LOG_PATH,logging_level=None):
     level = logging_level
     if level is None:
-        level = logging.DEBUG
+        level = logging.INFO
     # get root level logger
     logger = logging.getLogger()
     if len(logger.handlers)>0:
@@ -91,7 +94,8 @@ def plotly_plot(df_in,x_column,plot_title=None,
                 number_of_ticks_display=20,
                 yaxis2_cols=None,
                 x_value_labels=None,
-               modebar_orientation='v',modebar_color='grey'):
+               modebar_orientation='v',modebar_color='grey',
+               autosize=True):
     ya2c = [] if yaxis2_cols is None else yaxis2_cols
     ycols = [c for c in df_in.columns.values if c != x_column]
     # create tdvals, which will have x axis labels
@@ -129,7 +133,7 @@ def plotly_plot(df_in,x_column,plot_title=None,
             title='y alt' if y_right_label is None else y_right_label,
             overlaying='y',
             side='right'),
-        autosize=True,
+        autosize=autosize,
 #         autosize=False,
 #         width=width,
 #         height=height,
@@ -174,6 +178,297 @@ def plotly_shaded_rectangles(beg_end_date_tuple_list,fig):
     fig.update_layout(shapes=ld_shapes)
     return fig
 
+
+def plotly_subplots(df,df_figure,num_ticks_to_display=20,title="",
+                   subplot_titles=None):
+    '''
+    Create a plotly figure instance, where the x,y data for the figure come from column values in 
+    the DataFrame df, and the values that determine where this data appears in the subplots comes 
+    from values in the DataFrame df_figure.
+    
+    
+    :param df: Pandas DataFrame with data to graph in it's columns.  Required
+    :param df_figure: DataFrame that defines the placement and style of each
+                       plotly.graph_objs graph object that is associated with columns in df. Required 
+    :param num_ticks_to_display: Number of xaxis ticks to display.  Default= 20
+    :param title:  Main figure title.  Default is ''
+    :param subplot_titles: titles for subplots.  Default = None
+    
+    Example:
+    
+    df = pd.DataFrame({'x':[1,2,3,4,5],
+                       'y1':[10,11,12,13,14],'y2':[19,18,17,16,15],
+                       'y3':[20,21,22,23,24],'y4':[29,28,27,26,25]})
+    # define rows of df_fig, which defines the look of the subplots
+    y_defs = [
+        ['name','x_column','row','col','is_secondary','yaxis_title'],
+        ['y1','x',1,1,False,'y1 values'],
+        ['y2','x',1,1,True, 'y2 values'],
+        ['y3','x',2,1,False,'y3 values'],
+        ['y4','x',2,1,True, 'y4 values']
+    ]
+    
+    df_fig = pd.DataFrame(y_defs[1:],columns=y_defs[0])
+    fig_title = "Example with 2 rows and 1 column, and 4 lines"
+    sp_titles = ['y1 and y2 plots','y3 and y4 plots']
+    fig_test = plotly_subplots(df,df_fig,num_ticks_to_display=15,title=fig_title,subplot_titles = sp_titles)
+    iplot(fig_test)
+        
+    '''
+    # determine number of rows and columns in subplot grid
+    rows = int(df_figure['row'].max())
+    cols = int(df_figure['col'].max())
+    
+    # Create a matrix of yaxis subscript numbers: 
+    #   Each cell in the subplot grid has 2 yaxis, where:
+    #      The left yaxis = f"yaxis{(row-1)*cols + 1}
+    #      The right yaxis = f"yaxis{(row-1)*cols + 1 + col}
+    #   The right axis is only used if the is_secondary column of the df_yaxis matrix for
+    #      a specific graph object is set to True.
+    i = 0
+    yaxis_number_matrix = []
+    for _ in range(rows):
+        for _ in range(cols):
+            yaxis_number_matrix.append([i+1,i+2])
+            i+=2
+
+    vert_spacing = .05
+    specs = [[{"secondary_y": True} for i in range(cols)] for _ in range(rows)]
+    if subplot_titles is None:
+        fig = make_subplots(rows=rows, cols=cols,
+                        specs=specs,shared_xaxes=True,vertical_spacing=vert_spacing)
+    else:
+        vert_spacing +=.03
+        fig = make_subplots(rows=rows, cols=cols,
+                        specs=specs,shared_xaxes=True,
+                           subplot_titles=subplot_titles,vertical_spacing=vert_spacing)
+
+    df_yp = df_figure.copy()
+    df_yp['row'].fillna(1)
+    df_yp['col'].fillna(1)
+    df_yp.is_secondary.fillna(False)
+    df_yp.yaxis_title.fillna('')
+    yaxis_title_dict = {}
+    # add traces
+    for i in range(len(df_yp)):
+        r = df_yp.iloc[i]
+        td = df[r.x_column].values
+        nt = len(df)-1 if num_ticks_to_display > len(df) else num_ticks_to_display
+        spacing = len(td)//nt
+        tdvals = td[::spacing]
+        tdtext = tdvals
+#         if x_value_labels is not None:
+#             tdtext = [x_value_labels[i] for i in tdvals]
+        x = td
+        y = df[r['name']].values
+        row = int(r['row'])
+        col = int(r['col'])
+        is_secondary = r.is_secondary
+        yaxis_title = r.yaxis_title
+        name=r['name']
+        fig.add_trace(
+            go.Scatter(x=x, y=y, name=name),
+            row=row, col=col, secondary_y=is_secondary)
+        fig.update_xaxes(
+            ticktext=tdtext,
+            tickvals=tdvals,
+            tickangle=45,
+            type='category', row=row, col=col)
+        
+        yaxis_nums = yaxis_number_matrix[(row-1)*cols + (col-1)]
+        yaxis_num = yaxis_nums[1] if is_secondary else yaxis_nums[0]
+        yaxis_num = '' if yaxis_num == 1 else yaxis_num
+        yaxis_name = f"yaxis{yaxis_num}"
+        yaxis_title_dict[yaxis_name] = yaxis_title
+#         fig.update_yaxes(title_text=yaxis_title, row=row, col=col)  
+    
+    fig.update_layout(
+        title={
+            'text': title,
+            'y':0.9,
+            'x':0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'},
+    )
+
+    figdictstring = fig.to_json()
+    figdict = json.loads(figdictstring)
+    for yax in yaxis_title_dict.keys():
+        figdict['layout'][yax]['title'] = yaxis_title_dict[yax]
+    return figdict
+
+
+def print_axis_info(ff):
+    print(ff['layout']['title']['text'])
+    print(ff['layout'].keys())
+    xsd = lambda k,j:None if j not in ff['layout'][k] else ff['layout'][k][j]
+    xs = [(k,[xsd(k,j) for j in ['anchor','domain','type','title']]) for k in ff['layout'].keys() if 'xaxis' in k]
+    print(xs)
+    ysd = lambda k,j:None if j not in ff['layout'][k] else ff['layout'][k][j]
+    # ys = [(k,fig2['layout'][k]) for k in fig2['layout'].keys() if 'yaxis' in k]
+    ys = [(k,[ysd(k,j) for j in ['anchor','domain','overlaying','title']]) for k in ff['layout'].keys() if 'yaxis' in k]
+    print(ys)
+    
+    
+class PlotlyCandles():
+    BAR_WIDTH=.5
+    def __init__(self,df,title='candle plot',number_of_ticks_display=20):
+        self.df = df.copy()
+        #  and make sure the first index is 1 NOT 0!!!!!!
+        self.df.index = np.array(list(range(len(df))))+1
+        
+        self.title = title
+        self.number_of_ticks_display = number_of_ticks_display
+        
+    def get_candle_shapes(self):
+        df = self.df.copy()
+        xvals = df.index.values #chg    
+        lows = df.low.values
+        highs = df.high.values
+        closes = df.close.values
+        opens = df.open.values
+        df['is_red'] = df.open>=df.close
+        is_reds = df.is_red.values
+        lines_below_box = [{
+                    'type': 'line',
+                    'x0': xvals[i],
+                    'y0': lows[i],
+                    'x1': xvals[i],
+                    'y1': closes[i] if is_reds[i] else opens[i],
+                    'line': {
+                        'color': 'rgb(55, 128, 191)',
+                        'width': 1.5,
+                    }
+                } for i in range(len(xvals))
+        ]
+
+        lines_above_box = [{
+                    'type': 'line',
+                    'x0': xvals[i],
+                    'y0': opens[i] if is_reds[i] else closes[i],
+                    'x1': xvals[i],
+                    'y1': highs[i],
+                    'line': {
+                        'color': 'rgb(55, 128, 191)',
+                        'width': 1.5,
+                    }
+                }for i in range(len(xvals))
+        ]
+
+
+        boxes = [{
+                    'type': 'rect',
+                    'xref': 'x',
+                    'yref': 'y',
+                    'x0': xvals[i]- PlotlyCandles.BAR_WIDTH/2,
+                    'y0': closes[i] if is_reds[i] else opens[i],
+                    'x1': xvals[i]+ PlotlyCandles.BAR_WIDTH/2,
+                    'y1': opens[i] if is_reds[i] else closes[i],
+                    'line': {
+                        'color': 'rgb(55, 128, 191)',
+                        'width': 1,
+                    },
+                    'fillcolor': 'rgba(255, 0, 0, 0.6)' if is_reds[i] else 'rgba(0, 204, 0, 0.6)',
+                } for i in range(len(xvals))
+        ]
+        shapes = lines_below_box + boxes + lines_above_box
+        return shapes
+
+    
+    def get_figure(self):
+        '''
+        Use Plotly to create a financial candlestick chart.
+        The DataFrame df_in must have columns called:
+         'date','open','high','low','close'
+        '''
+        # Step 0: get important constructor values (so you don't type 'self.'' too many times)
+        df_in = self.df.copy()
+        title=self.title
+        number_of_ticks_display=self.number_of_ticks_display
+        
+        # Step 1: only get the relevant columns and sort by date
+        cols_to_keep = ['date','open','high','low','close','volume']
+        df = df_in[cols_to_keep].sort_values('date')
+        # Step 2: create a data frame for "green body" days and "red body" days
+        # Step 3: create the candle shapes that surround the scatter plot in trace1
+        shapes = self.get_candle_shapes()
+
+        # Step 4: create an array of x values that you want to show on the xaxis
+        spaces = len(df)//number_of_ticks_display
+        indices = list(df.index.values[::spaces]) + [max(df.index.values)]
+        tdvals = df.loc[indices].date.values
+
+        # Step 5: create a layout
+        layout1 = go.Layout(
+            showlegend=False,
+            title={
+            'text': title,
+            'y':0.9,
+            'x':0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'},
+            margin = dict(t=100),
+            xaxis = go.layout.XAxis(
+                tickmode = 'array',
+                tickvals = indices,
+                ticktext = tdvals,
+                tickangle=90,
+                showgrid = True,
+                showticklabels=True,
+                anchor='y2', 
+            ),       
+            yaxis1 = go.layout.YAxis(
+                range =  [min(df.low.values), max(df.high.values)],
+                domain=[.22,1]
+            ),
+            yaxis2 = go.layout.YAxis(
+                range =  [0, max(df.volume.values)],
+                domain=[0,.2]
+            ),
+            shapes = shapes
+        )
+
+        # Step 6: create a scatter object, and put it into an array
+        def __hover_text(r):
+            d = r.date
+            o = r.open
+            h = r.high
+            l = r.low
+            c = r.close
+            v = r.volume
+            t = f'date: {d}<br>open: {o}<br>high: {h}<br>low: {l}<br>close: {c}<br>volume: {v}' 
+            return t
+        df['hover_text'] = df.apply(__hover_text,axis=1)
+        hover_text = df.hover_text.values
+
+        # Step 7: create scatter (close values) trace.  The candle shapes will surround the scatter trace
+        trace1 = go.Scatter(
+            x=df.index.values,
+            y=df.close.values,
+            mode = 'markers',
+            text = hover_text,
+            hoverinfo = 'text',
+            xaxis='x',
+            yaxis='y1'
+        )
+
+        # Step 8: create the bar trace (volume values)
+        trace2 = go.Bar(
+            x=df.index.values,
+            y=df.volume.values,
+            width = PlotlyCandles.BAR_WIDTH,
+            xaxis='x',
+            yaxis='y2'
+        )
+
+        # Step 9: create the final figure and pass it back to the caller
+        fig1 = {'data':[trace1,trace2],'layout':layout1}
+        
+        return fig1
+    
+    def plot(self):
+        fig = self.get_figure()
+        return fig    
 DEFAULT_TIMEZONE = 'US/Eastern'
 
 
@@ -433,7 +728,9 @@ class DashLink():
             )
         def execute_callback(*inputs_and_states):
             l = list(inputs_and_states)
-            if l is None or len(l)<1 or l[0] is None:
+            if l is None or len(l)<1:
+                stop_callback(f'execute_callback no data for {self.output_table_names}',self.logger)
+            if all([l[i] is None for i in range(len(l))]):
                 stop_callback(f'execute_callback no data for {self.output_table_names}',self.logger)
             ret = self.io_callback(l)
             return ret if type(ret) is list else [ret]
