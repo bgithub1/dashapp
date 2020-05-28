@@ -266,8 +266,12 @@ def plotly_subplots(df,df_figure,num_ticks_to_display=20,title="",
         is_secondary = r.is_secondary
         yaxis_title = r.yaxis_title
         name=r['name']
+        go_trace = go.Scatter(x=x, y=y, name=name)
+        if 'trace' in df_yp.columns.values:
+            go_trace = r['trace']
         fig.add_trace(
-            go.Scatter(x=x, y=y, name=name),
+#             go.Scatter(x=x, y=y, name=name),
+            go_trace,
             row=row, col=col, secondary_y=is_secondary)
         fig.update_xaxes(
             ticktext=tdtext,
@@ -558,14 +562,25 @@ def _get_filter_expression(df,filter):
     df_filtered = df[filter_expression]
     return df_filtered
 
-def _dash_table_update_paging_closure(df):
+
+
+def _dash_table_update_paging_closure(df,input_store_key):
     def _dash_table_update_paging(input_list):
         if (input_list is None) or (len(input_list)<3):
             stop_callback(f"_dash_table_update_paging - insufficent data input_list {input_list}")
         page_current = input_list[0]
         page_size = input_list[1]
         filter_query = input_list[2]
-        df_new = df.copy()
+        if len(input_list)>3 and input_list[3] is not None:
+            # take first key from keys()
+            store_data_dict = input_list[3]
+            if input_store_key is not None:
+                data_key = input_store_key
+            else:
+                data_key = list(store_data_dict.keys())[0]
+            df_new = pd.DataFrame(store_data_dict[data_key])
+        else:
+            df_new = df.copy()
 #        {Cnty} = 61 && {Well_Name} contains Sea
         if (filter_query is not None) and (len(filter_query)>0):
             print(f"_dash_table_update_paging filter_query: {filter_query}")
@@ -584,6 +599,8 @@ def _dash_table_update_paging_closure(df):
 
 
 def make_dashtable(dtable_id,df_in,
+                  input_store = None,
+                  input_store_key=None,
                   columns_to_display=None,
                   editable_columns_in=None,
                   title='Dash Table',logger=None,
@@ -647,7 +664,7 @@ def make_dashtable(dtable_id,df_in,
         style_as_list_view=False,
         style_table={
 #             'maxHeight':'450px','overflowX': 'scroll','overflowY':'scroll'
-            'overflowY':'scroll','overflowY':'scroll',
+            'overflowX':'scroll','overflowY':'scroll',
              'maxWidth': max_width
         } ,
         
@@ -672,8 +689,10 @@ def make_dashtable(dtable_id,df_in,
     
     # create DashLink for dynamic paging
     input_tuples = [(dtable_id, "page_current"),(dtable_id, "page_size"),(dtable_id,"filter_query")]
+    if input_store is not None:
+        input_tuples = input_tuples + [(input_store,'data')]
     output_tuples = [(dtable_id, 'data')]
-    link_for_dynamic_paging = DashLink(input_tuples,output_tuples,_dash_table_update_paging_closure(df_in[df_start.columns.values]))
+    link_for_dynamic_paging = DashLink(input_tuples,output_tuples,_dash_table_update_paging_closure(df_in[df_start.columns.values],input_store_key))
     return dt,link_for_dynamic_paging
 
 
@@ -889,6 +908,7 @@ def make_page_title(title_text,div_id=None,html_container=None,parent_class=None
                  div_id=div_id,
                  panel_background_color=panel_background_color) 
     return r   
+
 
 # ### Define DashLink generators for common sets of components
 def radio_to_dropdown_options_link(radio_comp,dropdown_comp,build_dropdown_options_callback):
