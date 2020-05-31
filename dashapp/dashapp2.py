@@ -125,9 +125,18 @@ def plotly_plot(df_in,x_column,plot_title=None,
             ticktext=tdtext,
             tickvals=tdvals,
             tickangle=45,
-            type='category'),
+            type='category',
+            showspikes=True,
+            spikemode='toaxis+across',
+            spikedash='solid',
+            spikethickness=1,
+            ),
         yaxis=dict(
-            title='y main' if y_left_label is None else y_left_label
+            title='y main' if y_left_label is None else y_left_label,
+            showspikes=True,
+            spikemode='toaxis+across',
+            spikedash='solid',
+            spikethickness=1,
         ),
         yaxis2=dict(
             title='y alt' if y_right_label is None else y_right_label,
@@ -140,7 +149,9 @@ def plotly_plot(df_in,x_column,plot_title=None,
         margin=Margin(
             b=100
         ),
-        modebar={'orientation': modebar_orientation,'bgcolor':modebar_color}
+        modebar={'orientation': modebar_orientation,'bgcolor':modebar_color},
+        hovermode='x',
+        spikedistance=1000        
     )
 
     fig = go.Figure(data=data,layout=layout)
@@ -150,7 +161,9 @@ def plotly_plot(df_in,x_column,plot_title=None,
             'y':0.9,
             'x':0.5,
             'xanchor': 'center',
-            'yanchor': 'top'})
+            'yanchor': 'top'},
+        legend={'orientation':"h",'x':0, 'y':1.1},
+        )
     return fig
 
 def plotly_shaded_rectangles(beg_end_date_tuple_list,fig):
@@ -316,13 +329,26 @@ def print_axis_info(ff):
     
 class PlotlyCandles():
     BAR_WIDTH=.5
-    def __init__(self,df,title='candle plot',number_of_ticks_display=20):
+    def __init__(self,df,title='candle plot',number_of_ticks_display=20,
+                 price_rounding=4,modebar_orientation='v',modebar_color='grey'):
+        '''
+        Use Plotly to create a financial candlestick chart.
+        The DataFrame df_in must have columns called:
+         'date','open','high','low','close'
+        
+        :param df:
+        :param title:
+        :param number_of_ticks_display:
+        '''
         self.df = df.copy()
         #  and make sure the first index is 1 NOT 0!!!!!!
         self.df.index = np.array(list(range(len(df))))+1
         
         self.title = title
         self.number_of_ticks_display = number_of_ticks_display
+        self.price_rounding=price_rounding
+        self.modebar_orientation = modebar_orientation
+        self.modebar_color = modebar_color
         
     def get_candle_shapes(self):
         df = self.df.copy()
@@ -411,23 +437,25 @@ class PlotlyCandles():
             'x':0.5,
             'xanchor': 'center',
             'yanchor': 'top'},
-            margin = dict(t=100),
+            modebar={'orientation': self.modebar_orientation,'bgcolor':self.modebar_color},
+            hovermode='x',
+#             margin = dict(t=50),
             xaxis = go.layout.XAxis(
                 tickmode = 'array',
                 tickvals = indices,
                 ticktext = tdvals,
-                tickangle=90,
+                tickangle=45,
                 showgrid = True,
                 showticklabels=True,
                 anchor='y2', 
             ),       
             yaxis1 = go.layout.YAxis(
                 range =  [min(df.low.values), max(df.high.values)],
-                domain=[.22,1]
+                domain=[.17,1]
             ),
             yaxis2 = go.layout.YAxis(
                 range =  [0, max(df.volume.values)],
-                domain=[0,.2]
+                domain=[0,.15]
             ),
             shapes = shapes
         )
@@ -435,10 +463,10 @@ class PlotlyCandles():
         # Step 6: create a scatter object, and put it into an array
         def __hover_text(r):
             d = r.date
-            o = r.open
-            h = r.high
-            l = r.low
-            c = r.close
+            o = round(r.open,self.price_rounding)
+            h = round(r.high,self.price_rounding)
+            l = round(r.low,self.price_rounding)
+            c = round(r.close,self.price_rounding)
             v = r.volume
             t = f'date: {d}<br>open: {o}<br>high: {h}<br>low: {l}<br>close: {c}<br>volume: {v}' 
             return t
@@ -446,14 +474,16 @@ class PlotlyCandles():
         hover_text = df.hover_text.values
 
         # Step 7: create scatter (close values) trace.  The candle shapes will surround the scatter trace
-        trace1 = go.Scatter(
+#         trace1 = go.Scatter(
+        trace1 = go.Scattergl(
             x=df.index.values,
             y=df.close.values,
             mode = 'markers',
             text = hover_text,
             hoverinfo = 'text',
             xaxis='x',
-            yaxis='y1'
+            yaxis='y1',
+            marker={'symbol':'line-ew'}
         )
 
         # Step 8: create the bar trace (volume values)
@@ -467,7 +497,18 @@ class PlotlyCandles():
 
         # Step 9: create the final figure and pass it back to the caller
         fig1 = {'data':[trace1,trace2],'layout':layout1}
-        
+#         fig1['layout'].margin = {'t':150,'l':3,'r':3}
+        fig1['layout'].margin = {'t':150}
+        fig1['layout'].hovermode='x'
+        fig1['layout'].yaxis.showspikes=True
+        fig1['layout'].xaxis.showspikes=True
+        fig1['layout'].yaxis.spikemode="toaxis+across"
+        fig1['layout'].xaxis.spikemode="toaxis+across"
+        fig1['layout'].yaxis.spikedash="solid"
+        fig1['layout'].xaxis.spikedash="solid"
+        fig1['layout'].yaxis.spikethickness=1
+        fig1['layout'].xaxis.spikethickness=1
+        fig1['layout'].spikedistance=1000
         return fig1
     
     def plot(self):
@@ -795,9 +836,6 @@ def multi_cell_panel(children,grid_template=None,
     style = {'display':'grid',orientation:gtr,opposite_orientation:'1fr'}
     if panel_background_color is not None:
         style['background-color'] = panel_background_color
-#     panel_html = html.Div([html.Div(c,className=child_class) for c in children],
-#                           id=_new_uuid() if div_id is None else div_id,
-#                           className=parent_class,style=style)
     panel_html = html.Div([c for c in children],
                           id=_new_uuid() if div_id is None else div_id,
                           className=parent_class,style=style)
