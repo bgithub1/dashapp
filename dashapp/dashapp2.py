@@ -86,7 +86,19 @@ def stop_callback(errmess,logger=None):
     raise PreventUpdate()
 
 
-
+def figure_crosshairs(fig):
+    fig['layout'].hovermode='x'
+    fig['layout'].yaxis.showspikes=True
+    fig['layout'].xaxis.showspikes=True
+    fig['layout'].yaxis.spikemode="toaxis+across"
+    fig['layout'].xaxis.spikemode="toaxis+across"
+    fig['layout'].yaxis.spikedash="solid"
+    fig['layout'].xaxis.spikedash="solid"
+    fig['layout'].yaxis.spikethickness=1
+    fig['layout'].xaxis.spikethickness=1
+    fig['layout'].spikedistance=1000
+    return fig
+    
 
 def plotly_plot(df_in,x_column,plot_title=None,
                 y_left_label=None,y_right_label=None,
@@ -307,7 +319,7 @@ def plotly_subplots(df,df_figure,num_ticks_to_display=20,title="",
             'xanchor': 'center',
             'yanchor': 'top'},
     )
-
+    fig = figure_crosshairs(fig)
     figdictstring = fig.to_json()
     figdict = json.loads(figdictstring)
     for yax in yaxis_title_dict.keys():
@@ -329,7 +341,8 @@ def print_axis_info(ff):
     
 class PlotlyCandles():
     BAR_WIDTH=.5
-    def __init__(self,df,title='candle plot',number_of_ticks_display=20,
+    def __init__(self,df,date_column='date',
+                 title='candle plot',number_of_ticks_display=20,
                  price_rounding=4,modebar_orientation='v',modebar_color='grey'):
         '''
         Use Plotly to create a financial candlestick chart.
@@ -349,6 +362,7 @@ class PlotlyCandles():
         self.price_rounding=price_rounding
         self.modebar_orientation = modebar_orientation
         self.modebar_color = modebar_color
+        self.date_column=date_column
         
     def get_candle_shapes(self):
         df = self.df.copy()
@@ -417,8 +431,10 @@ class PlotlyCandles():
         number_of_ticks_display=self.number_of_ticks_display
         
         # Step 1: only get the relevant columns and sort by date
-        cols_to_keep = ['date','open','high','low','close','volume']
-        df = df_in[cols_to_keep].sort_values('date')
+#         cols_to_keep = ['date','open','high','low','close','volume']
+#         df = df_in[cols_to_keep].sort_values('date')
+        cols_to_keep = [self.date_column,'open','high','low','close','volume']
+        df = df_in[cols_to_keep].sort_values(self.date_column)
         # Step 2: create a data frame for "green body" days and "red body" days
         # Step 3: create the candle shapes that surround the scatter plot in trace1
         shapes = self.get_candle_shapes()
@@ -426,7 +442,8 @@ class PlotlyCandles():
         # Step 4: create an array of x values that you want to show on the xaxis
         spaces = len(df)//number_of_ticks_display
         indices = list(df.index.values[::spaces]) + [max(df.index.values)]
-        tdvals = df.loc[indices].date.values
+#         tdvals = df.loc[indices].date.values
+        tdvals = df.loc[indices][self.date_column].values
 
         # Step 5: create a layout
         layout1 = go.Layout(
@@ -462,7 +479,8 @@ class PlotlyCandles():
 
         # Step 6: create a scatter object, and put it into an array
         def __hover_text(r):
-            d = r.date
+#             d = r.date
+            d = r[self.date_column]
             o = round(r.open,self.price_rounding)
             h = round(r.high,self.price_rounding)
             l = round(r.low,self.price_rounding)
@@ -1001,7 +1019,7 @@ class DashApp():
             dl.callback(app)
     
     def create_app(self,layout_html,run=True,url_base_pathname=None,app_host='127.0.0.1',app_port=8800,
-                  app_title='dashapp',external_stylesheets=None):
+                  app_title='dashapp',external_stylesheets=None,**kwargs):
 
         if url_base_pathname is not None:
             app = dash.Dash(__name__, url_base_pathname=url_base_pathname,external_stylesheets=external_stylesheets)
@@ -1013,7 +1031,7 @@ class DashApp():
         full_url = f"http://{app_host}:{app_port}" + ('' if url_base_pathname is None else url_base_pathname)
         logger.info(f"This app will run at the URL: {full_url}")
         if run:
-            app.run_server(host=app_host,port=app_port)
+            app.run_server(host=app_host,port=app_port,**kwargs)
         return app
 
 
