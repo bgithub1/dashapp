@@ -934,7 +934,8 @@ def make_datepicker(df,comp_id,timestamp_column,
     min_date = df[timestamp_column].min()
     min_date - pd.to_datetime(min_date)
     max_date = df[timestamp_column].max()
-    max_date - pd.to_datetime(max_date)
+#     max_date - pd.to_datetime(max_date)
+    max_date = pd.to_datetime(max_date)
     idate = min_date if init_date == 0 else (max_date if init_date==1 else init_date)
     dp = dcc.DatePickerSingle(
         id=comp_id,
