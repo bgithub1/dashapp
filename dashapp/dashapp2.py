@@ -966,6 +966,14 @@ def make_page_title(title_text,div_id=None,html_container=None,parent_class=None
                  panel_background_color=panel_background_color) 
     return r   
 
+def make_text_centered_div(text):    
+    col_inner_style = {
+        'margin':'auto',
+        'word-break':'break-all',
+        'word-wrap': 'break-word'
+    }
+    return html.Div([text],style=col_inner_style)
+
 
 # ### Define DashLink generators for common sets of components
 def radio_to_dropdown_options_link(radio_comp,dropdown_comp,build_dropdown_options_callback):
