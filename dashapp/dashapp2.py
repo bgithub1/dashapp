@@ -28,7 +28,7 @@ import io
 import datetime
 import pytz
 import uuid
-
+import itertools
 
 
 # In[2]:
@@ -72,9 +72,23 @@ def str_to_date(d,sep='-'):
         return None
     return dt
 
+def grouper(n, it):
+    "grouper(3, 'ABCDEFG') --> ABC DEF G"
+    it = iter(it)
+    return iter(lambda: list(itertools.islice(it, n)), [])
 
+def generate_hilo_ranges(df,col,num_elements_per_group):
+    v = sorted(df[col].unique())
+    n = int(len(v)/num_elements_per_group)
+    n = 1 if n<1 else n
+    g = grouper(n,v)
+    return g
 
-# In[3]:
+def generate_sub_dfs(df,col,num_elements_per_group):
+    sublist_generator = generate_hilo_ranges(df,col,num_elements_per_group)
+    for sg in sublist_generator:
+        df_sub = df[(df[col]>=sg[0]) & (df[col]<=sg[-1])].copy()
+        yield df_sub
 
 
 logger = init_root_logger(logging_level='DEBUG')
