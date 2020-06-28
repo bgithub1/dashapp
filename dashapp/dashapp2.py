@@ -73,11 +73,29 @@ def str_to_date(d,sep='-'):
     return dt
 
 def grouper(n, it):
-    "grouper(3, 'ABCDEFG') --> ABC DEF G"
+    '''
+    split an iterable into sub-iterables, each with at most n elements in each group
+    Example:
+    grouper(3, "ABCDEFG") --> ABC DEF G
+
+    :param n: elements per group
+    :param it: python iterable which represents a group to be sub-divifed
+    '''
     it = iter(it)
     return iter(lambda: list(itertools.islice(it, n)), [])
 
 def generate_hilo_ranges(df,col,num_elements_per_group):
+    '''
+    Generate lists of tuples, with at most "num_elements_per_group" 
+    as number of tuples in each list of tuples.
+    
+    Each tuple contains a  (low_value,high_value) for each group.
+     
+    :param df: DataFrame with a column whose values will be grouped
+                 into a number of groups, where the group size <= num_elements_per_group
+    :param col: column to group
+    :param num_elements_per_group: max size each of group
+    '''
     v = sorted(df[col].unique())
     n = int(len(v)/num_elements_per_group)
     n = 1 if n<1 else n
@@ -85,10 +103,38 @@ def generate_hilo_ranges(df,col,num_elements_per_group):
     return g
 
 def generate_sub_dfs(df,col,num_elements_per_group):
+    '''
+    generate sub DataFrames where each sub DataFrame contains all of the
+      values of a specific column that fall between 2 values.
+    Example: 
+    import pandas as pd
+    from dashapp import dashapp2 as dashapp
+    from IPython import display
+    
+    df = pd.DataFrame({'x':np.arange(100),'y':np.arange(100)*10})
+    for df_sub in generate_sub_dfs(df,'x',10):
+        xlow = df_sub.x.min()
+        xhigh = df_sub.x.max()
+        df_sub2 = df_sub.style.set_caption(f"<div style='text-align:center;'>{xlow} to {xhigh} </div>")
+        display.display(df_sub2)
+    
+        
+    :param df: DataFrame to be broken up into groups
+    :param col: Column in DataFrame that holds grouping values
+    :param num_elements_per_group: max size of each group
+    '''
     sublist_generator = generate_hilo_ranges(df,col,num_elements_per_group)
     for sg in sublist_generator:
         df_sub = df[(df[col]>=sg[0]) & (df[col]<=sg[-1])].copy()
         yield df_sub
+
+def flatten_columns(df,index,columns,values=None):
+    df2 = pd.pivot_table(df,index=index,columns=columns)
+    new_columns = df2.columns.values
+    new_columns = df2.index.names + [c[1] for c in new_columns]
+    df2.reset_index( drop=False, inplace=True)
+    df2.columns = new_columns
+    return df2
 
 
 logger = init_root_logger(logging_level='DEBUG')
@@ -121,6 +167,7 @@ def plotly_plot(df_in,x_column,plot_title=None,
                 yaxis2_cols=None,
                 x_value_labels=None,
                modebar_orientation='v',modebar_color='grey',
+               legend_orientation='h',
                autosize=True):
     ya2c = [] if yaxis2_cols is None else yaxis2_cols
     ycols = [c for c in df_in.columns.values if c != x_column]
@@ -181,6 +228,7 @@ def plotly_plot(df_in,x_column,plot_title=None,
     )
 
     fig = go.Figure(data=data,layout=layout)
+    layout_legend = {} if legend_orientation == 'v' else {'orientation':legend_orientation,'x':0, 'y':1.1}
     fig.update_layout(
         title={
             'text': plot_title,
@@ -188,7 +236,8 @@ def plotly_plot(df_in,x_column,plot_title=None,
             'x':0.5,
             'xanchor': 'center',
             'yanchor': 'top'},
-        legend={'orientation':"h",'x':0, 'y':1.1},
+#         legend={'orientation':legend_orientation,'x':0, 'y':1.1},
+        legend=layout_legend,
         )
     return fig
 
@@ -217,6 +266,20 @@ def plotly_shaded_rectangles(beg_end_date_tuple_list,fig):
     fig.update_layout(shapes=ld_shapes)
     return fig
 
+def create_subplot_df_figure(col_name_list,x_column,row_list,
+                             col_list,is_secondary_list,yaxis_title_list):
+    y_defs = [['name','x_column','row','col','is_secondary','yaxis_title']]
+    df_figure = pd.DataFrame(
+        {
+            'name':col_name_list,
+            'x_column':[x_column for _ in range(len(col_name_list))],
+            'row':row_list,
+            'col':col_list,
+            'is_secondary':is_secondary_list,
+            'yaxis_title':yaxis_title_list
+        }
+    )
+    return df_figure
 
 def plotly_subplots(df,df_figure,num_ticks_to_display=20,title="",
                    subplot_titles=None):
