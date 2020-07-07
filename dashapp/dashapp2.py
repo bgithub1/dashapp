@@ -653,6 +653,9 @@ def make_df(dict_df):
     else:
         return pd.DataFrame(dict_df,columns=dict_df.keys())
 
+def add_df_title(df,title):
+    return df.style.set_caption(f"<div style='text-align:center;'>{title}</div>")
+
 class BadColumnsException(Exception):
     def __init__(self,*args,**kwargs):
         Exception.__init__(self,*args,**kwargs)
