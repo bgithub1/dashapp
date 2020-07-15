@@ -720,7 +720,15 @@ def _dash_table_update_paging_closure(df,input_store_key):
             df_new = pd.DataFrame(store_data_dict[data_key])
         else:
             df_new = df.copy()
-#        {Cnty} = 61 && {Well_Name} contains Sea
+        
+        # check to see if an "ERROR" data frame has been sent to this method
+        if len(df_new.columns)==1 and df_new.columns.values[0].lower()=='error':
+            # df_new is an error alert, so just send it without any other processing or checking
+            print(f"_dash_table_update_paging RETURNING ERROR DataFrame")
+            print(df_new)
+            return [df_new.to_dict('records')]
+        
+
         if (filter_query is not None) and (len(filter_query)>0):
             print(f"_dash_table_update_paging filter_query: {filter_query}")
             filters = filter_query.split("&&")            
@@ -764,6 +772,9 @@ def make_dashtable(dtable_id,df_in,
     :param logger:
     :param title_style: The css style of the title. Default is dgrid_components.h4_like.
     :param filtering: True if you want each column to have filtering.  Default is False.
+    
+    :return dash_table_instance,DashLink_for_dynamic_paging
+
     '''
     # create logger 
     lg = init_root_logger() if logger is None else logger
