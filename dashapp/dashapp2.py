@@ -846,8 +846,6 @@ def make_dashtable(dtable_id,df_in,
     return dt,link_for_dynamic_paging
 
 
-# In[7]:
-
 
 class_converters = {
     dcc.Checklist:lambda v:v,
@@ -1037,6 +1035,51 @@ def make_datepicker(df,comp_id,timestamp_column,
         style=style
     )
     return dp
+
+
+def transformer_csv_from_upload_component(contents):
+    '''
+    Convert the contents of the file that results from use of dash_core_components.Upload class.  
+        This method gets called from the UploadComponent class callback.
+    :param contents:    The value received from an update of a dash_core_components.Upload instance.'
+                            
+    '''
+    if contents is None or len(contents)<=0 or contents[0] is None:
+        d =  None
+    else:
+        d = parse_contents(contents).to_dict('rows')
+    return d
+
+class CsvFileUploader(html.Div):
+    def __init__(self,
+                 uploader_id,loading_fullscreen=True,
+                 style=None,multiple=False):
+        self.data_store = dcc.Store(id=f'{uploader_id}_data_store')
+        data_store_loading = dcc.Loading(
+            id='original_data_store_loading',children=[self.data_store],fullscreen=loading_fullscreen)
+        
+        # create a dcc.Upload component
+        self.uploader_comp = dcc.Upload(
+                    id=f"{uploader_id}_uploader",
+                    children=html.Div(["Choose a CSV File"]),
+                    accept = '.csv',
+                    # Allow multiple files to be uploaded
+                    multiple=multiple,
+                    style=style)
+        def _fup_callback(input_data):
+            contents = input_data[0]
+            d = transformer_csv_from_upload_component(contents)
+            return [d]
+            
+        self.uploader_link = DashLink(
+            [(self.uploader_comp,'contents')],
+            [(self.data_store,'data')],
+            _fup_callback
+        )
+        
+        uploader_div = html.Div([self.uploader_comp,data_store_loading])
+        super(CsvFileUploader,self).__init__([uploader_div],id=uploader_id)
+
 
 def make_page_title(title_text,div_id=None,html_container=None,parent_class=None,
                    panel_background_color='#CAE2EB'):
