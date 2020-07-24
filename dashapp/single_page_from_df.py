@@ -249,42 +249,104 @@ def _make_fd(col,df=None):
     return FilterDescriptor(col,init_value,cupper)
 
 def graph_from_csv_page(
-    dt_id,
+    main_id='single_page',
     page_title="DataFrame Viewer",
-    app_title="DataFrame Viewer",
-    app_host='127.0.0.1',
-    app_port=8800,
     loading_full_screen=True,
     dataframe_title='Selected Data',
     filters_per_filter_row=2,
-    run=True,
     logger= None,
     **kwargs
 ):
-    if logger is None:
-        logger = dashapp.init_root_logger()
+    logger = dashapp.init_root_logger()
+    # create uploader
     
-    csvfup = dashapp.CsvFileUploader(f"{dt_id}_csvuploader")
-    csvfup_title = dashapp.make_text_centered_div("Choose Csv File For Your Data")
-    csvfup_div = dashapp.multi_row_panel([csvfup_title,csvfup])
-    
-    filter_div = html.Div(id=f"{dt_id}_filter_div")
-    def _populate_filter_div(input_data):
-        df = pd.DataFrame(input_data[0])
-        def _get_data():
-            return df
-        d = create_dashgraph_page('dg_page', _get_data,run=False,logger=logger)
-        return [d['app'].layout]
-
-    
-    filter_div_link = dashapp.DashLink(
-        [(csvfup.data_store,'data')],[(filter_div,'children')],_populate_filter_div
+    uploader_text = dashapp.make_text_centered_div("Choose a CSV File")
+    uploader_comp = dcc.Upload(
+                id=f"{main_id}_uploader_comp",
+                children=uploader_text,
+                accept = '.csv')
+    upload_file_path = html.Div(id=f'{main_id}_upload_file_path')
+    upload_file_path_link = dashapp.DashLink(
+        [(uploader_comp,'filename')],[(upload_file_path,'children')],
+        lambda input_data:[input_data[0]]
     )
-    dap = dashapp.DashApp()
-    dap.add_links([filter_div_link,csvfup.uploader_link])
-    layout_html = html.Div([csvfup_div,filter_div])
-    dap.create_app(layout_html,app_host=app_host,app_port=app_port, app_title=app_title,run=run)
 
+
+    # create a store that will feed the DtChooser
+    uploader_column_only_store_df = dcc.Store(id=f'{main_id}_uploader_column_only_store_df')
+    def _update_uploader_column_only_store_df(input_data):
+        contents = input_data[0]
+        if contents is None:
+            dashapp.stop_callback('no data uploaded yet',logger)
+        table_data_dict = dashapp.transformer_csv_from_upload_component(contents)
+        df = pd.DataFrame(table_data_dict).head(1)
+        return [df.to_dict('records')]
+    uploader_column_only_store_df_dashlink = dashapp.DashLink(
+        [(uploader_comp,'contents')],[(uploader_column_only_store_df,'data')],
+        _update_uploader_column_only_store_df
+    )
+
+    dtdf_data_store = dcc.Store(id=f'{main_id}_dtdf_data_store')
+    dtdf,dtdf_paging_link = dashapp.make_dashtable(
+        'df_iphone',pd.DataFrame(),input_store=dtdf_data_store,max_width='100%',
+        update_columns=True
+    )
+    dtdf_loading = dcc.Loading(id=f'{main_id}_dtdf_loading',children=[dtdf,dtdf_data_store],fullscreen=True)
+
+    dtc = dashapp.DtChooser(f'{main_id}_dtchoose',uploader_column_only_store_df,logger=logger)
+    def _update_data(input_data):
+        contents = input_data[1]
+        if contents is None:
+            dashapp.stop_callback('no data uploaded yet',logger)
+        table_data_dict = dashapp.transformer_csv_from_upload_component(contents)
+        new_query_lines_dict = input_data[2]
+        if new_query_lines_dict is None:
+            return [table_data_dict]
+        df_query = pd.DataFrame(new_query_lines_dict)
+        df_new = pd.DataFrame(table_data_dict)
+
+        for i in range(len(df_query)):
+            s = df_query.iloc[i]
+            predicate = s.operator
+            if (predicate is None) or (len(predicate.strip())<=0):
+                continue
+            c = s['column']
+            o = s.operation
+            try:
+                df_temp = dashapp.filter_df(df_new,c,o,predicate)
+                if df_temp is not None:
+                    df_new = df_temp.copy()
+            except Exception as e:
+                print(str(e))
+        if df_new is None:
+            dashapp.stop_callback('no query results',logger) 
+        print('exiting')
+        return [df_new.to_dict('records')]
+
+    do_search_button = html.Button(
+        dashapp.make_text_centered_div("Click To Apply Filters"),
+        id=f'{main_id}_do_search_button',
+        style={"border-style":"none"}
+    )
+
+    dtc_to_dtdf_link = dashapp.DashLink(
+        [(do_search_button,'n_clicks'),(uploader_comp,'contents')],
+        [(dtdf_data_store,'data')],_update_data,[(dtc.id,'data')])
+
+    button_div = dashapp.multi_row_panel([uploader_comp,upload_file_path,do_search_button],
+                                             parent_class=dashapp.pn)
+    search_div = dashapp.multi_column_panel([button_div,dtc],
+                                                grid_template='1fr 4fr',
+                                                parent_class=dashapp.pn)
+    dap = dashapp.DashApp()
+    all_links = [dtc.dashlink,dtdf_paging_link,dtc_to_dtdf_link,
+         uploader_column_only_store_df_dashlink,upload_file_path_link]
+    dap.add_links(all_links)
+    all_rows = [search_div,dtdf_loading,uploader_column_only_store_df] 
+    theapp = dap.create_app(html.Div(all_rows),**kwargs)
+    return {'all_rows':all_rows,'all_links':all_links,
+            'app':theapp}
+    
 def create_dashgraph_page(
     dt_id,
     data_source,

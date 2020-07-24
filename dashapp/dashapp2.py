@@ -701,9 +701,78 @@ def _get_filter_expression(df,filter):
     df_filtered = df[filter_expression]
     return df_filtered
 
+_query_operators_options = [
+    {'label':'','value':''},
+    {'label':'=','value':'=='},
+    {'label':'!=','value':'!='},
+    {'label':'>','value':'>'},
+    {'label':'<','value':'<'},
+    {'label':'>=','value':'>='},
+    {'label':'<=','value':'<='},
+    {'label':'btwn','value':'btwn'},
+]
+class DtChooser(dash_table.DataTable):
+    def __init__(self,dt_chooser_id,store_of_df_data,logger=None):
+        super(DtChooser,self).__init__(
+            id=dt_chooser_id,
+            #data=df.to_dict('records'),
+            columns=[
+                {'id': 'column', 'name': 'column', 'presentation': 'dropdown'},
+                {'id': 'operation', 'name': 'operation', 'presentation': 'dropdown'},
+                {'id': 'operator', 'name': 'operator'},
+            ],
+            editable=True,
+        )
+        
+        self.logger = init_root_logger() if logger is None else logger
+        def _update_column_dropdown_options(input_data):
+            dict_df = input_data[0]
+            if dict_df is None:
+                stop_callback("DtChooser._update_column_dropdown_options: no input data for columns", self.logger)
+            newcols = pd.DataFrame(dict_df).columns.values
+            thisdd = {
+                'operation': {'options': _query_operators_options},
+                'column':{'options': [{'label': i, 'value': i} for i in newcols]}
+            }
+            blanks = ['' for _ in range(4)]
+            data = pd.DataFrame({'column':blanks,'operation':blanks,'operator':blanks}).to_dict('records')
+            return [thisdd,data]
+        self.dashlink = DashLink([(store_of_df_data.id,'data')],[(self.id,'dropdown'),(self.id,'data')],_update_column_dropdown_options)
+        
+        
+def filter_df(df,col,operator,predicate):
+    if (predicate is None) or (len(predicate.strip())<=0):
+        return None
+    if (col is None) or (len(col.strip())<=0):
+        return None
+    p = predicate
+    # Check to see if the col holds string data, and if so
+    #   wrap the predicate in single quotes
+    o = operator
+    if (o is None) or (len(o.strip())<=0):
+        o = 'contains'
+    if o == 'contains':
+        df = df[df[col].astype(str).str.contains(p)]
+    else:
+        needs_quotes = False
+        try:
+            df[col].astype(float).sum()
+        except:
+            needs_quotes = True
+        p = f"'{p}'" if needs_quotes else p
+        q = f"{col} {o} {p}"
+        df = df.query(q)
+    return df
 
 
-def _dash_table_update_paging_closure(df,input_store_key):
+def _update_dt(df,return_columns=False):
+    data = df.to_dict('records')
+    if not return_columns:
+        return [data]
+    cols = [{"name": i, "id": i,'editable': False} for i in df.columns.values]
+    return [data,cols]
+
+def _dash_table_update_paging_closure(df,input_store_key,return_columns=False):
     def _dash_table_update_paging(input_list):
         if (input_list is None) or (len(input_list)<3):
             stop_callback(f"_dash_table_update_paging - insufficent data input_list {input_list}")
@@ -715,18 +784,20 @@ def _dash_table_update_paging_closure(df,input_store_key):
             store_data_dict = input_list[3]
             if input_store_key is not None:
                 data_key = input_store_key
-            else:
+                data_for_df = store_data_dict[data_key]
+            elif type(store_data_dict)==dict:
                 data_key = list(store_data_dict.keys())[0]
-            df_new = pd.DataFrame(store_data_dict[data_key])
+                data_for_df = store_data_dict[data_key]
+            else:
+                data_for_df = store_data_dict
+            df_new = pd.DataFrame(data_for_df)
         else:
             df_new = df.copy()
-        
         # check to see if an "ERROR" data frame has been sent to this method
         if len(df_new.columns)==1 and df_new.columns.values[0].lower()=='error':
             # df_new is an error alert, so just send it without any other processing or checking
-            print(f"_dash_table_update_paging RETURNING ERROR DataFrame")
-            print(df_new)
-            return [df_new.to_dict('records')]
+#             return [df_new.to_dict('records')]
+            return _update_dt(df_new, return_columns)
         
 
         if (filter_query is not None) and (len(filter_query)>0):
@@ -741,21 +812,27 @@ def _dash_table_update_paging_closure(df,input_store_key):
         df_new =  df_new.iloc[
             beg_row:beg_row + page_size
         ]
-        return [df_new.to_dict('records')]
+#         return [df_new.to_dict('records')]
+        return _update_dt(df_new, return_columns)
     return _dash_table_update_paging
 
 
-def make_dashtable(dtable_id,df_in,
-                  input_store = None,
-                  input_store_key=None,
-                  columns_to_display=None,
-                  editable_columns_in=None,
-                  title='Dash Table',logger=None,
-                  title_style=None,
-                  filtering=False,
-                  max_width='120vh',
-                  displayed_rows=20,
-                  editable=True):
+def make_dashtable(dtable_id,
+            df_in,
+            input_store = None,
+            input_store_key=None,
+            columns_to_display=None,
+            editable_columns_in=None,
+            title='Dash Table',logger=None,
+            title_style=None,
+            filtering=False,
+            page_action='custom',
+            #                 max_width='120vh',
+            max_width='99vw',
+            displayed_rows=20,
+            editable=True,
+            update_columns=False
+):
     '''
     Create an instance of dash_table.DataTable
     
@@ -772,6 +849,10 @@ def make_dashtable(dtable_id,df_in,
     :param logger:
     :param title_style: The css style of the title. Default is dgrid_components.h4_like.
     :param filtering: True if you want each column to have filtering.  Default is False.
+    :param page_action: custom, native (custom is default)
+    :param max_width: 99vw is default
+    :param displayed_rows: 20 is default
+    :param editable: False is default
     
     :return dash_table_instance,DashLink_for_dynamic_paging
 
@@ -794,7 +875,7 @@ def make_dashtable(dtable_id,df_in,
         page_current= 0,
 #         page_size= 100,
         page_size=displayed_rows,
-        page_action='custom',        
+        page_action=page_action,        
         
         filter_action=filter_action,#'none', # 'fe',
 #         fixed_rows={'headers': True, 'data': 0},
@@ -813,9 +894,8 @@ def make_dashtable(dtable_id,df_in,
 
         style_as_list_view=False,
         style_table={
-#             'maxHeight':'450px','overflowX': 'scroll','overflowY':'scroll'
             'overflowX':'scroll','overflowY':'scroll',
-             'maxWidth': max_width
+            'maxWidth': max_width
         } ,
         
         style_data={
@@ -842,7 +922,10 @@ def make_dashtable(dtable_id,df_in,
     if input_store is not None:
         input_tuples = input_tuples + [(input_store,'data')]
     output_tuples = [(dtable_id, 'data')]
-    link_for_dynamic_paging = DashLink(input_tuples,output_tuples,_dash_table_update_paging_closure(df_in[df_start.columns.values],input_store_key))
+    if update_columns:
+        output_tuples = output_tuples + [(dtable_id,'columns')]
+    dynamic_pagin_callback = _dash_table_update_paging_closure(df_in[df_start.columns.values],input_store_key,update_columns)
+    link_for_dynamic_paging = DashLink(input_tuples,output_tuples,dynamic_pagin_callback)
     return dt,link_for_dynamic_paging
 
 
@@ -1056,7 +1139,7 @@ class CsvFileUploader(html.Div):
                  style=None,multiple=False):
         self.data_store = dcc.Store(id=f'{uploader_id}_data_store')
         data_store_loading = dcc.Loading(
-            id='original_data_store_loading',children=[self.data_store],fullscreen=loading_fullscreen)
+            id=f'{uploader_id}_original_data_store_loading',children=[self.data_store],fullscreen=loading_fullscreen)
         
         # create a dcc.Upload component
         self.uploader_comp = dcc.Upload(
@@ -1068,17 +1151,29 @@ class CsvFileUploader(html.Div):
                     style=style)
         def _fup_callback(input_data):
             contents = input_data[0]
-            d = transformer_csv_from_upload_component(contents)
-            return [d]
+            dict_df = transformer_csv_from_upload_component(contents)
+            return [dict_df]
+#             dict_store = {f"{uploader_id}_data":dict_df}
+#             return [dict_store]
             
         self.uploader_link = DashLink(
             [(self.uploader_comp,'contents')],
             [(self.data_store,'data')],
             _fup_callback
         )
+
         
         uploader_div = html.Div([self.uploader_comp,data_store_loading])
         super(CsvFileUploader,self).__init__([uploader_div],id=uploader_id)
+#         self.uploader_comp_loading = dcc.Loading(
+#             id=f'{uploader_id}_uploader_comp_loading',children=[self.uploader_comp],fullscreen=loading_fullscreen)
+#         uploader_div = html.Div([self.uploader_comp_loading])
+#         super(CsvFileUploader,self).__init__([uploader_div],id=uploader_id)
+    
+    @staticmethod
+    def upload_string_to_dict(upload_string):
+        df = transformer_csv_from_upload_component(upload_string)
+        return df
 
 
 def make_page_title(title_text,div_id=None,html_container=None,parent_class=None,
