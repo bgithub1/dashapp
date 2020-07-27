@@ -5,6 +5,10 @@ Created on Jul 15, 2020
 '''
 import pandas as pd
 import numpy as np
+import zipfile
+import io
+import re
+import base64
 
 # import datetime
 # from tqdm import tqdm,tqdm_notebook
@@ -264,7 +268,7 @@ def graph_from_csv_page(
     uploader_comp = dcc.Upload(
                 id=f"{main_id}_uploader_comp",
                 children=uploader_text,
-                accept = '.csv')
+                accept = '.csv,.zip')
     upload_file_path = html.Div(id=f'{main_id}_upload_file_path')
     upload_file_path_link = dashapp.DashLink(
         [(uploader_comp,'filename')],[(upload_file_path,'children')],
@@ -272,18 +276,39 @@ def graph_from_csv_page(
     )
 
 
+    def zipdata_to_df(contents,filename):
+        c = contents.split(",")[1]
+        content_decoded = base64.b64decode(c)
+        # Use BytesIO to handle the decoded content
+        zoio2 = io.BytesIO(content_decoded)
+        f = zipfile.ZipFile(zoio2).open(filename.replace('.zip',''))
+        nym2 = [l.decode("utf-8")  for l in f]
+        sio2 = io.StringIO()
+        sio2.writelines(nym2)
+        sio2.seek(0)
+        df = pd.read_csv(sio2)
+        return df
+        
     # create a store that will feed the DtChooser
     uploader_column_only_store_df = dcc.Store(id=f'{main_id}_uploader_column_only_store_df')
     def _update_uploader_column_only_store_df(input_data):
         contents = input_data[0]
         if contents is None:
             dashapp.stop_callback('no data uploaded yet',logger)
-        table_data_dict = dashapp.transformer_csv_from_upload_component(contents)
-        df = pd.DataFrame(table_data_dict).head(1)
+        filename = input_data[1]
+        if filename is None:
+            dashapp.stop_callback('no filename yet',logger)
+        if len(re.findall("\.zip$",filename.lower()))>0:
+            # it's a zip file
+            df = zipdata_to_df(contents, filename)
+        else:
+            table_data_dict = dashapp.transformer_csv_from_upload_component(contents)
+            df = pd.DataFrame(table_data_dict).head(1)
         return [df.to_dict('records')]
     uploader_column_only_store_df_dashlink = dashapp.DashLink(
         [(uploader_comp,'contents')],[(uploader_column_only_store_df,'data')],
-        _update_uploader_column_only_store_df
+        _update_uploader_column_only_store_df,
+        [(uploader_comp,'filename')]
     )
 
     dtdf_data_store = dcc.Store(id=f'{main_id}_dtdf_data_store')
@@ -298,7 +323,17 @@ def graph_from_csv_page(
         contents = input_data[1]
         if contents is None:
             dashapp.stop_callback('no data uploaded yet',logger)
-        table_data_dict = dashapp.transformer_csv_from_upload_component(contents)
+        filename = input_data[-1]
+        if filename is None:
+            dashapp.stop_callback('no filename yet',logger)
+        if len(re.findall("\.zip$",filename.lower()))>0:
+            # it's a zip file
+            df = zipdata_to_df(contents, filename)
+            table_data_dict = df.to_dict('records')
+        else:
+            table_data_dict = dashapp.transformer_csv_from_upload_component(contents)
+        
+#         table_data_dict = dashapp.transformer_csv_from_upload_component(contents)
         new_query_lines_dict = input_data[2]
         if new_query_lines_dict is None:
             return [table_data_dict]
@@ -331,7 +366,8 @@ def graph_from_csv_page(
 
     dtc_to_dtdf_link = dashapp.DashLink(
         [(do_search_button,'n_clicks'),(uploader_comp,'contents')],
-        [(dtdf_data_store,'data')],_update_data,[(dtc.id,'data')])
+        [(dtdf_data_store,'data')],_update_data,
+        [(dtc.id,'data'),(uploader_comp,'filename')])
 
     button_div = dashapp.multi_row_panel([uploader_comp,upload_file_path,do_search_button],
                                              parent_class=dashapp.pn)
