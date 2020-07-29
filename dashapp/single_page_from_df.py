@@ -436,7 +436,7 @@ def graph_from_csv_page(
         dtc.dashlink,
         dtdf_paging_link,
         dtc_to_dtdf_link,
-        unique_values_link,
+#         unique_values_link,
         uploader_column_only_store_df_dashlink,
         uploader_file_path_link,
 #         tabs_link,
