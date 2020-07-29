@@ -252,9 +252,11 @@ def _make_fd(col,df=None):
     init_value = None if df is None else df.iloc[0][col]
     return FilterDescriptor(col,init_value,cupper)
 
+
+
 def graph_from_csv_page(
     main_id='single_page',
-    page_title="DataFrame Viewer",
+    page_title="CSV Viewer",
     loading_full_screen=True,
     dataframe_title='Selected Data',
     filters_per_filter_row=2,
@@ -262,20 +264,21 @@ def graph_from_csv_page(
     **kwargs
 ):
     logger = dashapp.init_root_logger()
-    # create uploader
     
-    uploader_text = dashapp.make_text_centered_div("Choose a CSV File")
+    
+    # create uploader
+    uploader_text = dashapp.make_text_centered_div("Choose a CSV or ZIP File")
     uploader_comp = dcc.Upload(
                 id=f"{main_id}_uploader_comp",
                 children=uploader_text,
                 accept = '.csv,.zip')
-    upload_file_path = html.Div(id=f'{main_id}_upload_file_path')
-    upload_file_path_link = dashapp.DashLink(
-        [(uploader_comp,'filename')],[(upload_file_path,'children')],
+    uploader_file_path = html.Div(id=f'{main_id}_uploader_file_path')
+    uploader_file_path_link = dashapp.DashLink(
+        [(uploader_comp,'filename')],[(uploader_file_path,'children')],
         lambda input_data:[input_data[0]]
     )
 
-
+    # method to create a data frame from zipfile contents that came from an dcc.Upload component
     def zipdata_to_df(contents,filename):
         c = contents.split(",")[1]
         content_decoded = base64.b64decode(c)
@@ -291,6 +294,10 @@ def graph_from_csv_page(
         
     # create a store that will feed the DtChooser
     uploader_column_only_store_df = dcc.Store(id=f'{main_id}_uploader_column_only_store_df')
+    # create the DtChooser object, which allows you to filter a csv file using queries of 
+    #   the csv files columns
+    dtc = dashapp.DtChooser(f'{main_id}_dtchoose',uploader_column_only_store_df,logger=logger)
+    # create a DashLink that takes data from uploader_comp, and feeds the dcc.Store uploader_column_only_store_df
     def _update_uploader_column_only_store_df(input_data):
         contents = input_data[0]
         if contents is None:
@@ -306,39 +313,43 @@ def graph_from_csv_page(
             df = pd.DataFrame(table_data_dict).head(1)
         return [df.to_dict('records')]
     uploader_column_only_store_df_dashlink = dashapp.DashLink(
-        [(uploader_comp,'contents')],[(uploader_column_only_store_df,'data')],
+        [(uploader_comp,'contents')],
+        [(uploader_column_only_store_df,'data')],
         _update_uploader_column_only_store_df,
         [(uploader_comp,'filename')]
     )
 
+    # create a dcc.Store to feed the main DashTable that will show the filtered csv data
     dtdf_data_store = dcc.Store(id=f'{main_id}_dtdf_data_store')
-    dtdf,dtdf_paging_link = dashapp.make_dashtable(
-        'df_iphone',pd.DataFrame(),input_store=dtdf_data_store,max_width='100%',
-        update_columns=True
-    )
-    dtdf_loading = dcc.Loading(id=f'{main_id}_dtdf_loading',children=[dtdf,dtdf_data_store],fullscreen=True)
-
-    dtc = dashapp.DtChooser(f'{main_id}_dtchoose',uploader_column_only_store_df,logger=logger)
-    def _update_data(input_data):
-        contents = input_data[1]
+    
+    # method to make a DataFrame from either zip contents, or plain dict contents
+    def _contents_to_df(contents,filename):
         if contents is None:
             dashapp.stop_callback('no data uploaded yet',logger)
-        filename = input_data[-1]
-        if filename is None:
-            dashapp.stop_callback('no filename yet',logger)
         if len(re.findall("\.zip$",filename.lower()))>0:
             # it's a zip file
             df = zipdata_to_df(contents, filename)
             table_data_dict = df.to_dict('records')
         else:
             table_data_dict = dashapp.transformer_csv_from_upload_component(contents)
-        
-#         table_data_dict = dashapp.transformer_csv_from_upload_component(contents)
+        df_new = pd.DataFrame(table_data_dict)
+        return df_new
+
+    # MAIN METHOD TO UPDATE CSV DISPLAY, which gets run when new csv files are uploaded,
+    #   or when new filters are executed using the filter button
+    def _update_data(input_data):
+        print(f"_update_data entry")
+        contents = input_data[1]
+        if contents is None:
+            dashapp.stop_callback('no data uploaded yet',logger)
+        filename = input_data[-1]
+        if filename is None:
+            dashapp.stop_callback('no filename yet',logger)
+        df_new = _contents_to_df(contents, filename)
         new_query_lines_dict = input_data[2]
         if new_query_lines_dict is None:
-            return [table_data_dict]
+            return [df_new.to_dict('records')]
         df_query = pd.DataFrame(new_query_lines_dict)
-        df_new = pd.DataFrame(table_data_dict)
 
         for i in range(len(df_query)):
             s = df_query.iloc[i]
@@ -366,19 +377,74 @@ def graph_from_csv_page(
 
     dtc_to_dtdf_link = dashapp.DashLink(
         [(do_search_button,'n_clicks'),(uploader_comp,'contents')],
-        [(dtdf_data_store,'data')],_update_data,
+        [(dtdf_data_store,'data')],
+        _update_data,
         [(dtc.id,'data'),(uploader_comp,'filename')])
 
-    button_div = dashapp.multi_row_panel([uploader_comp,upload_file_path,do_search_button],
+    # !!!!!!!!!!!!!! CREATE MAIN DISPLAY OF DATA DATAFRAME HERE !!!!!!!!!!!!!!
+    dtdf_id = f'{main_id}_dtdf'
+    # make the DashTable here
+    dtdf,dtdf_paging_link = dashapp.make_dashtable(
+        dtdf_id,pd.DataFrame(),input_store=dtdf_data_store,max_width='100%',
+        update_columns=True,displayed_rows=100
+    )
+    # wrap it in a Loading div
+    dtdf_loading = dcc.Loading(id=f'{main_id}_dtdf_loading',children=[dtdf,dtdf_data_store],fullscreen=True)
+
+    # button to execute filter
+    button_div = dashapp.multi_row_panel([uploader_comp,uploader_file_path,do_search_button],
                                              parent_class=dashapp.pn)
+    # div that holds all of the divs that allow filtering main csv file
     search_div = dashapp.multi_column_panel([button_div,dtc],
                                                 grid_template='1fr 4fr',
                                                 parent_class=dashapp.pn)
+    
+    # create div that shows unique column values
+    unique_values_div = html.Div(id=f'{main_id}_unique_values_div')
+    unique_values_loading = dcc.Loading(children=[unique_values_div],fullscreen=True,
+                                    id=f'{main_id}_unique_values_div_loading')
+        
+    def _render_unique_values_div(input_data):
+        print("enter _render_unique_values_div")
+        df_new = pd.DataFrame(input_data[-1])
+        uniques = []
+        for c in df_new.columns.values:
+            uniques.append(', '.join(df_new[c].astype(str).unique()))
+        dfu = pd.DataFrame({'col':df_new.columns.values,'uniques':uniques})
+        dtu,_ = dashapp.make_dashtable(
+            f"{main_id}_dt_unique_cols", df_in=dfu,displayed_rows=100)
+        dtu.style_cell={'textAlign': 'left','whiteSpace':'normal','height':'auto'}        
+        return [dtu]
+    unique_values_link = dashapp.DashLink(
+        [(dtdf_data_store,'data')],
+        [(unique_values_div,'children')],
+        _render_unique_values_div,
+    )
+
+    
+    # create tabs
+#     tab_tuple_list = [
+#         ('Show CSV Rows','csv_rows',lambda _:[dtdf_loading]),
+#         ('Show Unique Column Values','unique_values',_render_unique_values_div)
+#     ]
+#     tabs_div,tabs_link = dashapp.make_tabs(f"{main_id}_tabs", tab_tuple_list,[(dtdf_data_store,'data')])
+        
+    top_title = dashapp.make_page_title(page_title, f"{main_id}_page_title")
     dap = dashapp.DashApp()
-    all_links = [dtc.dashlink,dtdf_paging_link,dtc_to_dtdf_link,
-         uploader_column_only_store_df_dashlink,upload_file_path_link]
+    
+    all_links = [
+        dtc.dashlink,
+        dtdf_paging_link,
+        dtc_to_dtdf_link,
+        unique_values_link,
+        uploader_column_only_store_df_dashlink,
+        uploader_file_path_link,
+#         tabs_link,
+    ]
     dap.add_links(all_links)
-    all_rows = [search_div,dtdf_loading,uploader_column_only_store_df] 
+
+#     all_rows = [top_title,search_div,tabs_div,uploader_column_only_store_df] 
+    all_rows = [top_title,search_div,dtdf_loading,unique_values_loading,uploader_column_only_store_df] 
     theapp = dap.create_app(html.Div(all_rows),**kwargs)
     return {'all_rows':all_rows,'all_links':all_links,
             'app':theapp}

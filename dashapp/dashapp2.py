@@ -794,9 +794,8 @@ def _dash_table_update_paging_closure(df,input_store_key,return_columns=False):
         else:
             df_new = df.copy()
         # check to see if an "ERROR" data frame has been sent to this method
-        if len(df_new.columns)==1 and df_new.columns.values[0].lower()=='error':
+        if len(df_new.columns)==1 and str(df_new.columns.values[0]).lower()=='error':
             # df_new is an error alert, so just send it without any other processing or checking
-#             return [df_new.to_dict('records')]
             return _update_dt(df_new, return_columns)
         
 
@@ -812,7 +811,6 @@ def _dash_table_update_paging_closure(df,input_store_key,return_columns=False):
         df_new =  df_new.iloc[
             beg_row:beg_row + page_size
         ]
-#         return [df_new.to_dict('records')]
         return _update_dt(df_new, return_columns)
     return _dash_table_update_paging
 
@@ -1272,9 +1270,51 @@ class DashApp():
             app.run_server(host=app_host,port=app_port,**kwargs)
         return app
 
+def make_tabs(
+        tabs_id,
+        tab_tuple_list,
+        input_component_list,
+        tab_style=None,
+        tab_selected_style=None):
+#     tabs_styles = {
+#     'height': '44px'
+#     }
+    ts = tab_style if tab_style is not None else {
+        'borderBottom': '1px solid #d6d6d6',
+        'padding': '6px',
+        'fontWeight': 'bold'
+    }
 
-# In[23]:
-
+    tss = tab_selected_style if tab_selected_style is not None else {
+        'borderTop': '1px solid #d6d6d6',
+        'borderBottom': '1px solid #d6d6d6',
+        'backgroundColor': '#119DFF',
+        'color': 'white',
+        'padding': '6px'
+    }
+    
+    dcctabs = []
+    dict_tab_children = {}
+    for tab_text,tab_value,callback_for_this_child in tab_tuple_list:
+        dcctab = dcc.Tab(label=tab_text, value=tab_value, style=ts, selected_style=tss)
+        dcctabs.append(dcctab)
+        dict_tab_children[tab_value] = callback_for_this_child
+    tabs_comp = dcc.Tabs(id=tabs_id, value=dcctabs[0].value, children=dcctabs)
+    tabs_results_div = html.Div(id=f"{tabs_id}tabs_results_div")
+    tabs_div = html.Div([tabs_comp,tabs_results_div],id=f"{tabs_id}_div")
+    
+    def _render_tab(input_data):
+        tab = input_data[0]
+        callback_for_this_child = dict_tab_children[tab]
+        return [html.Div(callback_for_this_child(input_data[1:]))]
+    
+    tabs_link = DashLink([(tabs_comp,'value')],
+                         [(tabs_results_div,'children')],
+                        _render_tab,
+                        input_component_list)
+    return tabs_div,tabs_link        
 
 # !jupyter nbconvert --to script dash_oil_gas.ipynb
+
+
 
