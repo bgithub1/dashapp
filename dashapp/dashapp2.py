@@ -29,6 +29,7 @@ import datetime
 import pytz
 import uuid
 import itertools
+import zipfile
 
 
 # In[2]:
@@ -712,7 +713,17 @@ _query_operators_options = [
     {'label':'btwn','value':'btwn'},
 ]
 class DtChooser(dash_table.DataTable):
-    def __init__(self,dt_chooser_id,store_of_df_data,logger=None):
+    '''
+    Create a Dash DataTable that displays filter options for the columns 
+      of another DataFrame's data, that is located in a dcc.Store
+    '''
+    def __init__(self,dt_chooser_id,store_of_df_data,num_filters_rows=4,logger=None):
+        '''
+        
+        :param dt_chooser_id: DataTable id
+        :param store_of_df_data: dcc.Store object that holds the dict of the DataFrame that will be filtered
+        :param logger: instance of logging, usually obtained from init_root_logger
+        '''
         super(DtChooser,self).__init__(
             id=dt_chooser_id,
             #data=df.to_dict('records'),
@@ -734,10 +745,29 @@ class DtChooser(dash_table.DataTable):
                 'operation': {'options': _query_operators_options},
                 'column':{'options': [{'label': i, 'value': i} for i in newcols]}
             }
-            blanks = ['' for _ in range(4)]
+            blanks = ['' for _ in range(num_filters_rows)]
             data = pd.DataFrame({'column':blanks,'operation':blanks,'operator':blanks}).to_dict('records')
             return [thisdd,data]
         self.dashlink = DashLink([(store_of_df_data.id,'data')],[(self.id,'dropdown'),(self.id,'data')],_update_column_dropdown_options)
+
+    def execute_filter_query(self,df_source,df_query):
+        '''
+        Filter df_source - IN PLACE - using df_query.
+        df_query has 3 columns: column, operation, operator
+        :param df_source: orignal DataFrame to be queried
+        :param df_query: a DataFrame of queries
+        '''
+        for i in range(len(df_query)):
+            s = df_query.iloc[i]
+            predicate = s.operator
+            if (predicate is None) or (len(predicate.strip())<=0):
+                continue
+            c = s['column']
+            o = s.operation
+            df_temp = filter_df(df_source,c,o,predicate)
+            if df_temp is not None:
+                df_source = df_temp.copy()
+            return df_source
         
         
 def filter_df(df,col,operator,predicate):
@@ -764,6 +794,19 @@ def filter_df(df,col,operator,predicate):
         df = df.query(q)
     return df
 
+def zipdata_to_df(zipdata):
+    content_decoded = base64.b64decode(zipdata)
+    # Use BytesIO to handle the decoded content
+    zoio2 = io.BytesIO(content_decoded)
+    f = zipfile.ZipFile(zoio2)
+    filename = f.namelist()[0]
+    z = f.open(filename.replace('.zip',''))
+    nym2 = [l.decode("utf-8")  for l in z]
+    sio2 = io.StringIO()
+    sio2.writelines(nym2)
+    sio2.seek(0)
+    df = pd.read_csv(sio2)
+    return df
 
 def _update_dt(df,return_columns=False):
     data = df.to_dict('records')
@@ -772,7 +815,8 @@ def _update_dt(df,return_columns=False):
     cols = [{"name": i, "id": i,'editable': False} for i in df.columns.values]
     return [data,cols]
 
-def _dash_table_update_paging_closure(df,input_store_key,return_columns=False):
+def _dash_table_update_paging_closure(df,input_store_key,return_columns=False,
+                                      input_store_is_zip=False):
     def _dash_table_update_paging(input_list):
         if (input_list is None) or (len(input_list)<3):
             stop_callback(f"_dash_table_update_paging - insufficent data input_list {input_list}")
@@ -788,8 +832,12 @@ def _dash_table_update_paging_closure(df,input_store_key,return_columns=False):
             elif type(store_data_dict)==dict:
                 data_key = list(store_data_dict.keys())[0]
                 data_for_df = store_data_dict[data_key]
+            elif input_store_is_zip:
+                df_from_zip =  zipdata_to_df(store_data_dict)
+                data_for_df = df_from_zip.to_dict('records')
             else:
                 data_for_df = store_data_dict
+            # is store_data_dict a zipfile?
             df_new = pd.DataFrame(data_for_df)
         else:
             df_new = df.copy()
@@ -819,6 +867,7 @@ def make_dashtable(dtable_id,
             df_in,
             input_store = None,
             input_store_key=None,
+            input_store_is_zip=False,
             columns_to_display=None,
             editable_columns_in=None,
             title='Dash Table',logger=None,
@@ -922,7 +971,9 @@ def make_dashtable(dtable_id,
     output_tuples = [(dtable_id, 'data')]
     if update_columns:
         output_tuples = output_tuples + [(dtable_id,'columns')]
-    dynamic_pagin_callback = _dash_table_update_paging_closure(df_in[df_start.columns.values],input_store_key,update_columns)
+    dynamic_pagin_callback = _dash_table_update_paging_closure(
+        df_in[df_start.columns.values],input_store_key,update_columns,
+        input_store_is_zip=input_store_is_zip)
     link_for_dynamic_paging = DashLink(input_tuples,output_tuples,dynamic_pagin_callback)
     return dt,link_for_dynamic_paging
 

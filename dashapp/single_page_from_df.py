@@ -9,6 +9,8 @@ import zipfile
 import io
 import re
 import base64
+import traceback
+
 
 # import datetime
 # from tqdm import tqdm,tqdm_notebook
@@ -252,10 +254,7 @@ def _make_fd(col,df=None):
     init_value = None if df is None else df.iloc[0][col]
     return FilterDescriptor(col,init_value,cupper)
 
-
-
-def graph_from_csv_page(
-    main_id='single_page',
+def csvzip_viewer(main_id='single_page',
     page_title="CSV Viewer",
     loading_full_screen=True,
     dataframe_title='Selected Data',
@@ -263,6 +262,7 @@ def graph_from_csv_page(
     logger= None,
     **kwargs
 ):
+    pass
     logger = dashapp.init_root_logger()
     
     
@@ -271,17 +271,52 @@ def graph_from_csv_page(
     uploader_comp = dcc.Upload(
                 id=f"{main_id}_uploader_comp",
                 children=uploader_text,
-                accept = '.csv,.zip')
+#                 accept = '.csv,.zip')
+                accept = '.zip')
     uploader_file_path = html.Div(id=f'{main_id}_uploader_file_path')
     uploader_file_path_link = dashapp.DashLink(
         [(uploader_comp,'filename')],[(uploader_file_path,'children')],
-        lambda input_data:[input_data[0]]
+        lambda input_data:[input_data[0].split(",")[-1]]
+    )
+
+    def _zipdata_to_df(contents):
+        zipdata = contents.split(",")[1]
+        df = dashapp.zipdata_to_df(zipdata)
+        return df
+    
+    
+    
+
+
+def graph_from_csv_page(
+    main_id='single_page',
+    page_title="CSV Viewer",
+    loading_full_screen=True,
+    num_filters_rows=4,
+    logger= None,
+    **kwargs
+):
+    logger = logger if logger is not None else dashapp.init_root_logger()
+    
+    
+    # create uploader
+    uploader_text = dashapp.make_text_centered_div("Choose a CSV or ZIP File")
+    uploader_comp = dcc.Upload(
+                id=f"{main_id}_uploader_comp",
+                children=uploader_text,
+                accept = '.zip' 
+)
+    uploader_file_path = html.Div(id=f'{main_id}_uploader_file_path')
+    uploader_file_path_link = dashapp.DashLink(
+        [(uploader_comp,'filename')],[(uploader_file_path,'children')],
+        lambda input_data:[input_data[0].split(",")[-1]]
     )
 
     # method to create a data frame from zipfile contents that came from an dcc.Upload component
     def zipdata_to_df(contents,filename):
         c = contents.split(",")[1]
         content_decoded = base64.b64decode(c)
+#         content_decoded = base64.b64decode(contents)
         # Use BytesIO to handle the decoded content
         zoio2 = io.BytesIO(content_decoded)
         f = zipfile.ZipFile(zoio2).open(filename.replace('.zip',''))
@@ -296,7 +331,7 @@ def graph_from_csv_page(
     uploader_column_only_store_df = dcc.Store(id=f'{main_id}_uploader_column_only_store_df')
     # create the DtChooser object, which allows you to filter a csv file using queries of 
     #   the csv files columns
-    dtc = dashapp.DtChooser(f'{main_id}_dtchoose',uploader_column_only_store_df,logger=logger)
+    dtc = dashapp.DtChooser(f'{main_id}_dtchoose',uploader_column_only_store_df,num_filters_rows=num_filters_rows,logger=logger)
     # create a DashLink that takes data from uploader_comp, and feeds the dcc.Store uploader_column_only_store_df
     def _update_uploader_column_only_store_df(input_data):
         contents = input_data[0]
@@ -312,6 +347,7 @@ def graph_from_csv_page(
             table_data_dict = dashapp.transformer_csv_from_upload_component(contents)
             df = pd.DataFrame(table_data_dict).head(1)
         return [df.to_dict('records')]
+    
     uploader_column_only_store_df_dashlink = dashapp.DashLink(
         [(uploader_comp,'contents')],
         [(uploader_column_only_store_df,'data')],
@@ -335,6 +371,20 @@ def graph_from_csv_page(
         df_new = pd.DataFrame(table_data_dict)
         return df_new
 
+    def df_to_zipdata_string(df,filename):
+        print(f"df_to_zipdata_string: {filename}")
+        sio2 = io.StringIO()
+        df.to_csv(sio2,index=False)
+        sio2.seek(0)
+        zoio2 = io.BytesIO()
+        f = zipfile.ZipFile(zoio2,'a',zipfile.ZIP_DEFLATED,False)
+        f.writestr(filename,sio2.read())
+        f.close() 
+        zoio2.seek(0)
+        zdstring = base64.b64encode(zoio2.read()).decode("utf-8")
+        return zdstring
+
+
     # MAIN METHOD TO UPDATE CSV DISPLAY, which gets run when new csv files are uploaded,
     #   or when new filters are executed using the filter button
     def _update_data(input_data):
@@ -346,28 +396,23 @@ def graph_from_csv_page(
         if filename is None:
             dashapp.stop_callback('no filename yet',logger)
         df_new = _contents_to_df(contents, filename)
+        filename = filename.replace('.zip','')
         new_query_lines_dict = input_data[2]
         if new_query_lines_dict is None:
-            return [df_new.to_dict('records')]
+#             return [df_new.to_dict('records')]
+            return [df_to_zipdata_string(df_new,filename)]
         df_query = pd.DataFrame(new_query_lines_dict)
-
-        for i in range(len(df_query)):
-            s = df_query.iloc[i]
-            predicate = s.operator
-            if (predicate is None) or (len(predicate.strip())<=0):
-                continue
-            c = s['column']
-            o = s.operation
-            try:
-                df_temp = dashapp.filter_df(df_new,c,o,predicate)
-                if df_temp is not None:
-                    df_new = df_temp.copy()
-            except Exception as e:
-                print(str(e))
+        try:
+            df_new = dtc.execute_filter_query(df_new, df_query)
+        except Exception as e:
+            traceback.print_exc()
+            dashapp.stop_callback(str(e),logger)
+            
         if df_new is None:
             dashapp.stop_callback('no query results',logger) 
         print('exiting')
-        return [df_new.to_dict('records')]
+#         return [df_new.to_dict('records')]
+        return [df_to_zipdata_string(df_new,filename)]
 
     do_search_button = html.Button(
         dashapp.make_text_centered_div("Click To Apply Filters"),
@@ -385,11 +430,15 @@ def graph_from_csv_page(
     dtdf_id = f'{main_id}_dtdf'
     # make the DashTable here
     dtdf,dtdf_paging_link = dashapp.make_dashtable(
-        dtdf_id,pd.DataFrame(),input_store=dtdf_data_store,max_width='100%',
-        update_columns=True,displayed_rows=100
+        dtdf_id,pd.DataFrame(),
+        input_store=dtdf_data_store,
+        input_store_is_zip=True,
+        max_width='100%',
+        update_columns=True,displayed_rows=100,
+        
     )
     # wrap it in a Loading div
-    dtdf_loading = dcc.Loading(id=f'{main_id}_dtdf_loading',children=[dtdf,dtdf_data_store],fullscreen=True)
+    dtdf_loading = dcc.Loading(id=f'{main_id}_dtdf_loading',children=[dtdf,dtdf_data_store],fullscreen=loading_full_screen)
 
     # button to execute filter
     button_div = dashapp.multi_row_panel([uploader_comp,uploader_file_path,do_search_button],
@@ -401,7 +450,7 @@ def graph_from_csv_page(
     
     # create div that shows unique column values
     unique_values_div = html.Div(id=f'{main_id}_unique_values_div')
-    unique_values_loading = dcc.Loading(children=[unique_values_div],fullscreen=True,
+    unique_values_loading = dcc.Loading(children=[unique_values_div],fullscreen=loading_full_screen,
                                     id=f'{main_id}_unique_values_div_loading')
         
     def _render_unique_values_div(input_data):
