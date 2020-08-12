@@ -520,11 +520,19 @@ def create_dashgraph_page(
     Also return all of the DashLink instances that contain callbacks that reactively
      update the page.
      
-    @param df: The main DataFrame that supports the page
     @param dt_id: The DashTable id that will display the DataFrame data
+    @param data_source: One of 3 possibilities: 
+                1. a method that gets an initial Dataframe,
+                2. an object with a "data" property, where data_source.data 
+                   contains a dictionary that can be used with the constructor 
+                   pd.DataFrame(data_source.data)
+                3. None
+                         
     @param filter_discriptor_list: A list of instances of the class FilterDiscriptor
-    @param get_data_callback: A method that get's called when a filter is changed and
-        a new query is required.
+    @param page_title:
+    @param app_title:
+    @param app_host:
+    @param app_port:
     @param multi:
     @param loading_full_screen: show waiting icon on full screen, or just inside the component area
     @param dataframe_title: title of div with DataFrame of filtered data
@@ -670,7 +678,7 @@ def create_dashgraph_page(
         state_tuple_list=filter_dropdowns
     )
     
-    # Create a dash_table intance, using the data_store
+    # Create a dash_table instance, using the data_store
     dt_values,dt_nav_link = dashapp.make_dashtable(
         dt_id,df_in=df_init,max_width=None,
         input_store = data_store,
