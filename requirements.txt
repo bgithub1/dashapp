@@ -4,5 +4,5 @@ plotly==4.6.0
 dash_core_components==1.10.2
 pytz==2020.1
 dash_html_components==1.0.3
-numpy==1.18.4
+numpy==1.22.0
 dash_table==4.9.0
