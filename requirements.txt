@@ -3,6 +3,6 @@ dash==1.14.0
 plotly==4.6.0
 dash_core_components==1.10.2
 pytz==2020.1
-dash_html_components==1.0.3
+dash_html_components==2.0.0
 numpy==1.18.4
 dash_table==4.9.0
